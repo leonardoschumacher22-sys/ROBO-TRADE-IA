@@ -10,36 +10,32 @@ import pytz
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ESTILIZAÇÃO CSS (VISUAL PREMIUM) ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #1a1c22; color: #ffffff; }
     .stButton>button {
-        width: 100%;
-        background-color: #00c853;
-        color: white;
-        font-weight: bold;
-        border-radius: 5px;
-        height: 3.5em;
-        border: none;
+        width: 100%; background-color: #00c853; color: white;
+        font-weight: bold; border-radius: 5px; height: 3.5em; border: none;
     }
     .card {
-        background-color: #23272f;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #30363d;
-        margin-bottom: 15px;
+        background-color: #23272f; padding: 20px; border-radius: 10px;
+        border: 1px solid #30363d; margin-bottom: 15px;
     }
-    .header-info { text-align: right; color: #8b949e; font-size: 14px; }
+    .metric-box {
+        padding: 10px; text-align: center; border-radius: 5px; font-weight: bold; font-size: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- INICIALIZAÇÃO DO ESTADO ---
+# --- INICIALIZAÇÃO DO ESTADO (Garante o 0% no início) ---
 if "p_cima" not in st.session_state:
-    st.session_state.p_cima = 0
-    st.session_state.p_baixo = 0
-    st.session_state.sinal_card = ""
-    st.session_state.explicacao = "Aguardando análise para a próxima vela..."
+    st.session_state.update({
+        "p_cima": 0,
+        "p_baixo": 0,
+        "sinal_html": "",
+        "explicacao": "Aguardando solicitação de análise..."
+    })
 
 # --- SISTEMA DE LOGIN ---
 if "logado" not in st.session_state:
@@ -52,47 +48,42 @@ if not st.session_state.logado:
         if email.strip().lower() == "leonardo.schumacher22@gmail.com":
             st.session_state.logado = True
             st.rerun()
-        else:
-            st.error("E-mail não encontrado.")
     st.stop()
 
 # --- CABEÇALHO ---
 col_logo, col_pair, col_mode = st.columns([1, 4, 2])
-with col_logo:
-    st.markdown("## IT")
+with col_logo: st.markdown("## IT")
 with col_pair:
-    ativo_selecionado = st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"], label_visibility="collapsed")
+    ativo = st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"], label_visibility="collapsed")
 with col_mode:
-    st.markdown("<div class='header-info'>Análises diárias restantes: <b>Ilimitado</b></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:right; color:#8b949e;'>Análises: <b>Ilimitado</b></div>", unsafe_allow_html=True)
 
-# --- CONTEÚDO DINÂMICO ---
+# --- CONTEÚDO PRINCIPAL (Fragmento para evitar lag) ---
 @st.fragment(run_every=2)
-def render_dashboard():
+def live_dashboard():
     c1, c2 = st.columns([2, 1])
 
     with c1:
         st.markdown("### Monitoramento de Fluxo")
-        # Gráfico fixo para evitar o KeyError 'BBU_20_2.0'
-        chart_data = pd.DataFrame(np.random.randn(50, 1), columns=['Fluxo'])
-        st.line_chart(chart_data, height=300)
+        # Gráfico simples para evitar KeyError
+        chart_df = pd.DataFrame(np.random.randn(30, 1), columns=["Preço"])
+        st.line_chart(chart_df, height=250)
         
-        col_info, col_medo, col_mvp = st.columns(3)
-        with col_info:
-            preco_random = 1.187000 + random.uniform(-0.0005, 0.0005)
-            st.markdown(f"""
-                <div class='card'>
-                    <b>Informações do ativo</b><br>
-                    <small>Ativo: {ativo_selecionado}<br>Cotação: {preco_random:.6f}</small>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with col_medo:
-            st.markdown("<div class='card'><center><b>Índice de medo</b></center>", unsafe_allow_html=True)
-            v_medo = random.randint(45, 55)
-            fig = go.Figure(go.Indicator(mode="gauge+number", value=v_medo, gauge={'axis':{'range':[0,100]}, 'bar':{'color':"yellow"}}))
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.markdown(f"<div class='card'><b>{ativo}</b><br><small>Cotação: {1.1870 + random.uniform(-0.001, 0.001):.5f}</small></div>", unsafe_allow_html=True)
+        with m2:
+            val = random.randint(45, 55)
+            fig = go.Figure(go.Indicator(mode="gauge+number", value=val, gauge={'axis':{'range':[0,100]},'bar':{'color':"yellow"}}))
             fig.update_layout(height=140, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
             st.plotly_chart(fig, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+        with m3:
+            st.markdown("<div class='card'><b>MVP</b><br><small>Volume Estável</small></div>", unsafe_allow_html=True)
 
-        with col_mvp:
-            st.markdown("<div class='card
+    with c2:
+        st.markdown("### Análise com I.A")
+        
+        # Exibição das porcentagens
+        pc_col, pb_col = st.columns(2)
+        pc_col.markdown(f"<div class='metric-box' style='background:#1b4332; color:#00ff00;'>{st.session_state.p_cima}%<br><span style='font-size:12px;'>Cima</span></div>", unsafe_allow_html=True)
+        pb_col.markdown(f"<div class='metric-box' style='background:#432818; color:#ff4b4b;'>{st.session_state.p_baixo}%
