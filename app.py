@@ -22,9 +22,15 @@ st.markdown("""
         background-color: #23272f; padding: 20px; border-radius: 10px;
         border: 1px solid #30363d; margin-bottom: 15px;
     }
-    .header-info { text-align: right; color: #8b949e; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
+
+# --- INICIALIZAÇÃO DE ESTADO (Para travar a análise) ---
+if "analise_realizada" not in st.session_state:
+    st.session_state.p_cima = 0
+    st.session_state.p_baixo = 0
+    st.session_state.sinal_html = ""
+    st.session_state.texto_analise = "A explicação da análise aparecerá aqui após solicitar."
 
 # --- LOGIN ---
 if "logado" not in st.session_state:
@@ -37,99 +43,49 @@ if not st.session_state.logado:
         if email.strip().lower() == "leonardo.schumacher22@gmail.com":
             st.session_state.logado = True
             st.rerun()
-        else:
-            st.error("E-mail não autorizado.")
     st.stop()
 
 # --- CABEÇALHO ---
 col_logo, col_pair, col_mode = st.columns([1, 4, 2])
-with col_logo:
-    st.markdown("## IT")
+with col_logo: st.markdown("## IT")
 with col_pair:
     ativo_selecionado = st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"], label_visibility="collapsed")
 with col_mode:
-    st.markdown("<div class='header-info'>Análises diárias restantes: <b>Ilimitado</b></div>", unsafe_allow_html=True)
-    if st.button("Sair do modo Pro"):
-        st.session_state.logado = False
-        st.rerun()
+    st.markdown("<div style='text-align:right; color:#8b949e;'>Análises: <b>Ilimitado</b></div>", unsafe_allow_html=True)
 
-# --- FRAGMENTO DINÂMICO (Atualiza dados a cada 5s) ---
-@st.fragment(run_every=5)
-def render_dashboard():
+# --- FRAGMENTO PARA DADOS EM TEMPO REAL (Gráficos e Índices) ---
+@st.fragment(run_every=2)
+def live_market_data():
     c1, c2 = st.columns([2, 1])
 
     with c1:
         st.markdown("### Gráfico em tempo real")
-        chart_data = pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA'])
-        st.line_chart(chart_data, height=300)
+        st.line_chart(pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA']), height=300)
         
-        col_info, col_medo, col_mvp = st.columns(3)
-        with col_info:
-            preco_random = 1.187000 + random.uniform(-0.0002, 0.0002)
-            st.markdown(f"<div class='card'><b>Informações do ativo</b><br><small>Ativo: {ativo_selecionado}<br>Cotação: {preco_random:.6f}<br>Fundo: 1.186285<br>Topo: 1.190185</small></div>", unsafe_allow_html=True)
-            
-        with col_medo:
-            st.markdown("<div class='card'><center><b>Índice de medo</b></center>", unsafe_allow_html=True)
-            val_medo = random.randint(48, 56)
-            fig = go.Figure(go.Indicator(mode="gauge+number", value=val_medo, gauge={'axis':{'range':[0,100]}, 'bar':{'color':"yellow"}, 'steps':[{'range':[0,40],'color':"red"},{'range':[40,60],'color':"orange"},{'range':[60,100],'color':"green"}]}))
-            fig.update_layout(height=150, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            preco = 1.187000 + random.uniform(-0.0002, 0.0002)
+            st.markdown(f"<div class='card'><b>Ativo</b><br><small>{ativo_selecionado}<br>Preço: {preco:.6f}</small></div>", unsafe_allow_html=True)
+        with m2:
+            val = random.randint(45, 55)
+            fig = go.Figure(go.Indicator(mode="gauge+number", value=val, gauge={'axis':{'range':[0,100]},'bar':{'color':"yellow"}}))
+            fig.update_layout(height=140, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
             st.plotly_chart(fig, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_mvp:
-            st.markdown("<div class='card'><b>Índice de MVP</b>", unsafe_allow_html=True)
-            st.line_chart(np.random.randn(20, 1), height=120)
+        with m3:
+            st.markdown("<div class='card'><b>MVP</b>", unsafe_allow_html=True)
+            st.line_chart(np.random.randn(15, 1), height=80)
             st.markdown("</div>", unsafe_allow_html=True)
 
     with c2:
         st.markdown("### Análise com I.A")
-        # Força de velas dinâmica
-        cima = random.randint(40, 75)
-        baixo = 100 - cima
-        p_cima, p_baixo = st.columns(2)
-        p_cima.markdown(f"<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>{cima}%<br>Cima</div>", unsafe_allow_html=True)
-        p_baixo.markdown(f"<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>{baixo}%<br>Baixo</div>", unsafe_allow_html=True)
-        
-        st.write("")
+        # EXIBE OS VALORES TRAVADOS DO SESSION_STATE
+        pc, pb = st.columns(2)
+        pc.markdown(f"<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>{st.session_state.p_cima}%<br>Cima</div>", unsafe_allow_html=True)
+        pb.markdown(f"<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>{st.session_state.p_baixo}%<br>Baixo</div>", unsafe_allow_html=True)
         
         if st.button("ANALISAR ENTRADA"):
-            with st.spinner('Aguardando fechamento da vela...'):
+            with st.spinner('Analisando próxima vela...'):
                 time.sleep(2)
-                decisao = random.choice(["COMPRA 🟢", "VENDA 🔴"])
-                cor_bg = "#00c853" if "COMPRA" in decisao else "#d50000"
-                
-                # LÓGICA DA PRÓXIMA VELA
-                fuso_br = pytz.timezone('America/Sao_Paulo')
-                agora = datetime.now(fuso_br)
-                # Calcula o início do próximo minuto (Vela de entrada)
-                h_proxima_vela = (agora + timedelta(minutes=1)).replace(second=0, microsecond=0)
-                
-                h_entrada = h_proxima_vela.strftime("%H:%M")
-                h_gale1 = (h_proxima_vela + timedelta(minutes=1)).strftime("%H:%M")
-                h_gale2 = (h_proxima_vela + timedelta(minutes=2)).strftime("%H:%M")
-                
-                st.markdown(f"""
-                    <div style='background:{cor_bg}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
-                        <h2 style='margin:0; color:white;'>{decisao}</h2>
-                        <p style='margin:5px 0; font-weight:bold; color:white;'>PRÓXIMA VELA: {h_entrada}</p>
-                        <p style='margin:0; color:white;'>Ativo: {ativo_selecionado} | Confiança: {random.randint(93,98)}%</p>
-                        <hr style='margin:10px 0; border:0.5 solid rgba(255,255,255,0.3);'>
-                        <p style='margin:0; font-size:13px; color:white; text-align:left;'>
-                            <b>Se a vela de {h_entrada} der loss:</b><br>
-                            • Tente novamente às {h_gale1}<br>
-                            • Última tentativa às {h_gale2}
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-        st.markdown("<div class='card' style='margin-top:15px;'><b>Análise de Tendência</b><br><small>IA identificou padrão de reversão para a próxima vela de M1.</small></div>", unsafe_allow_html=True)
-
-# Inicia o Dashboard
-render_dashboard()
-
-# Rodapé
-st.markdown("---")
-n1, n2, n3 = st.columns(3)
-n1.info("Sinais baseados em Price Action puro.")
-n2.warning("Atenção ao calendário econômico.")
-n3.info("Delay de processamento: 0.2ms")
+                # ATUALIZA OS DADOS APENAS AQUI
+                st.session_state.p_cima = random.randint(30, 70)
+                st.session_state.p_baixo = 100 - st.session_state.p_cima
