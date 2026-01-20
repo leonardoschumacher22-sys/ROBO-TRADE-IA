@@ -3,131 +3,109 @@ import pandas as pd
 import numpy as np
 import time
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+import yfinance as yf
+from datetime import datetime
 
-# --- CONFIGURAÇÃO DE INTERFACE ---
-st.set_page_config(page_title="IT - ANALISADOR PRO", layout="wide", initial_sidebar_state="collapsed")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="IT - LIVE MARKET PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# Inicialização de Memória Permanente
+# Memória de Sessão para os ganhos e métricas
 if 'wins' not in st.session_state: st.session_state.wins = 0
 if 'losses' not in st.session_state: st.session_state.losses = 0
-if 'price_history' not in st.session_state:
-    st.session_state.price_history = [1.0850 + np.random.uniform(-0.001, 0.001) for _ in range(60)]
 
-# --- ESTILO VISUAL ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    .card { background: #1a1c22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; height: 160px; }
+    .card { background: #1a1c22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; height: 150px; }
     .news-blue { background: #1e3a8a; padding: 12px; border-radius: 8px; font-size: 12px; border-left: 5px solid #00d2ff; margin-bottom: 8px;}
-    .news-yellow { background: #854d0e; padding: 12px; border-radius: 8px; font-size: 12px; border-left: 5px solid #facc15; }
     .stButton>button { width: 100%; background: #4ade80; color: black; font-weight: bold; border-radius: 8px; height: 3.5em; border: none; }
-    .assertividade-bar { background: #30363d; border-radius: 5px; height: 12px; width: 100%; margin: 10px 0; }
-    .assertividade-fill { background: #00d2ff; height: 12px; border-radius: 5px; transition: 1.5s ease; }
-    h2, h3 { margin: 0; padding: 0; }
+    .assertividade-fill { background: #00d2ff; height: 12px; border-radius: 5px; transition: 1s ease; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- GERADOR DE DADOS EM TEMPO REAL (Sincronizado com Corretora) ---
-def generate_realtime_data():
-    # Adiciona um novo movimento de preço baseado no último
-    last_p = st.session_state.price_history[-1]
-    change = np.random.normal(0, 0.00015)
-    new_p = last_p + change
-    st.session_state.price_history.append(new_p)
-    if len(st.session_state.price_history) > 100:
-        st.session_state.price_history.pop(0)
-    
-    prices = st.session_state.price_history
-    df = pd.DataFrame(prices, columns=['Close'])
-    df['Open'] = df['Close'].shift(1).fillna(df['Close'] * 0.9999)
-    df['High'] = df[['Open', 'Close']].max(axis=1) + abs(np.random.normal(0, 0.00005, len(df)))
-    df['Low'] = df[['Open', 'Close']].min(axis=1) - abs(np.random.normal(0, 0.00005, len(df)))
-    
-    # Médias Móveis e RSI para Análise
-    df['MA20'] = df['Close'].rolling(window=20).mean()
-    df['STD'] = df['Close'].rolling(window=20).std()
-    df['Upper'] = df['MA20'] + (df['STD'] * 2)
-    df['Lower'] = df['MA20'] - (df['STD'] * 2)
-    
-    return df
+# --- FUNÇÃO DE BUSCA DE DADOS REAIS ---
+def get_live_data(ticker):
+    try:
+        # Puxa os dados reais (intervalo de 1 minuto)
+        data = yf.download(ticker, period="1d", interval="1m", progress=False)
+        if data.empty: return None
+        
+        # Cálculos Técnicos Reais
+        df = data.copy()
+        df['SMA'] = df['Close'].rolling(window=20).mean()
+        df['STD'] = df['Close'].rolling(window=20).std()
+        df['Upper'] = df['SMA'] + (df['STD'] * 2)
+        df['Lower'] = df['SMA'] - (df['STD'] * 2)
+        return df
+    except:
+        return None
 
-# --- CABEÇALHO ---
-c_logo, c_cat, c_ativo = st.columns([1, 2, 2])
-with c_logo: st.markdown("## IT")
-with c_cat: cat = st.selectbox("", ["FOREX/OTC", "CRIPTOMOEDAS", "AÇÕES"], label_visibility="collapsed")
-with c_ativo: 
-    ativos_list = ["EUR/USD", "GBP/USD", "BTC/USD", "APPLE", "NVIDIA"]
-    ativo_selecionado = st.selectbox("", ativos_list, label_visibility="collapsed")
+# --- HEADER E SELEÇÃO ---
+c1, c2, c3 = st.columns([1, 2, 2])
+with c1: st.markdown("## IT")
+with c2: cat = st.selectbox("Categoria", ["FOREX", "CRIPTOMOEDAS", "AÇÕES"], label_visibility="collapsed")
+with c3:
+    ativos_dict = {
+        "FOREX": "EURUSD=X",
+        "CRIPTOMOEDAS": "BTC-USD",
+        "AÇÕES": "AAPL"
+    }
+    ticker = ativos_dict[cat]
+    st.markdown(f"**Ativo Selecionado:** {ticker}")
 
-# --- PROCESSAMENTO ---
-df = generate_realtime_data()
-preco_atual = float(df['Close'].iloc[-1])
-b_up = float(df['Upper'].iloc[-1])
-b_low = float(df['Lower'].iloc[-1])
-medo_idx = int(50 + (np.random.normal(0, 5))) # Índice de Medo Dinâmico
+# --- EXECUÇÃO ---
+df = get_live_data(ticker)
 
-# --- DASHBOARD ---
-col_grafico, col_analise = st.columns([2, 1])
+if df is not None:
+    # Dados para os Cards
+    preco_atual = float(df['Close'].iloc[-1])
+    b_up = float(df['Upper'].iloc[-1])
+    b_low = float(df['Lower'].iloc[-1])
+    # Índice de Medo Simulado com base na volatilidade real
+    volatilidade = (df['High'].iloc[-1] - df['Low'].iloc[-1]) / preco_atual * 10000
+    medo_idx = int(clamp(50 + volatilidade, 0, 100))
 
-with col_grafico:
-    st.markdown(f"### Gráfico Online: {ativo_selecionado}")
-    # Gráfico de Candles
-    fig = go.Figure(data=[go.Candlestick(
-        x=list(range(len(df))), open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-        increasing_line_color='#4ade80', decreasing_line_color='#f87171'
-    )])
-    fig.update_layout(template="plotly_dark", height=380, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
-    st.plotly_chart(fig, use_container_width=True)
+    col_graf, col_ana = st.columns([2, 1])
 
-    # Métricas e Índice de Medo (Igual à imagem)
-    m1, m2 = st.columns(2)
-    with m1:
-        st.markdown(f"""<div class='card'><b>Métricas de Mercado</b><br><br>
-        Ativo: {ativo_selecionado}<br>Cotado: {preco_atual:.5f}<br>Volatilidade: Alta</div>""", unsafe_allow_html=True)
-    with m2:
-        st.markdown(f"""<div class='card'><b>Índice de Medo</b><br><br>
-        <center><h2 style='color:#facc15;'>{medo_idx}</h2>Neutro</center></div>""", unsafe_allow_html=True)
+    with col_graf:
+        st.markdown(f"### Gráfico Real em Tempo Aberto")
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close']
+        )])
+        fig.update_layout(template="plotly_dark", height=380, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig, use_container_width=True)
 
-with col_analise:
-    total = st.session_state.wins + st.session_state.losses
-    taxa_win = (st.session_state.wins / total * 100) if total > 0 else 0
-    
-    st.markdown(f"<b>Assertividade Ativa: {taxa_win:.1f}%</b>", unsafe_allow_html=True)
-    st.markdown(f"<div class='assertividade-bar'><div class='assertividade-fill' style='width:{taxa_win}%'></div></div>", unsafe_allow_html=True)
+        m1, m2 = st.columns(2)
+        with m1: st.markdown(f"<div class='card'><b>Métricas Bolsa</b><br><br>Preço: {preco_atual:.5f}<br>Máxima: {df['High'].max():.5f}</div>", unsafe_allow_html=True)
+        with m2: st.markdown(f"<div class='card'><b>Índice de Medo</b><br><br><center><h2 style='color:#facc15;'>{medo_idx}</h2>Ganância</center></div>", unsafe_allow_html=True)
 
-    # Lógica de IA: Sai do AGUARDAR baseado no toque das Bandas
-    sinal = "AGUARDAR"
-    cor_alerta = "#30363d"
-    
-    if preco_atual <= b_low:
-        sinal = "COMPRA 🟢"; cor_alerta = "#4ade80"
-    elif preco_atual >= b_up:
-        sinal = "VENDA 🔴"; cor_alerta = "#f87171"
-    else:
-        # Força uma análise se o usuário clicar
-        sinal = "VENDA 🔴" if preco_atual > df['MA20'].iloc[-1] else "COMPRA 🟢"
-        cor_alerta = "#f87171" if sinal == "VENDA 🔴" else "#4ade80"
+    with col_ana:
+        total = st.session_state.wins + st.session_state.losses
+        taxa = (st.session_state.wins / total * 100) if total > 0 else 0
+        st.write(f"**Assertividade:** {taxa:.1f}%")
+        st.markdown(f"<div style='background:#333; height:12px; border-radius:5px;'><div class='assertividade-fill' style='width:{taxa}%'></div></div>", unsafe_allow_html=True)
 
-    if st.button("ANALISAR PRÓXIMA VELA"):
-        with st.spinner('Sincronizando feed...'):
-            time.sleep(0.5)
-            st.markdown(f"""
-            <div style='background:{cor_alerta}; padding:20px; border-radius:10px; color:black; text-align:center; border: 2px solid white;'>
-                <h2 style='margin:0;'>{sinal}</h2>
-                <b>ENTRADA: PRÓXIMA VELA (M1)</b>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.write("---")
-    st.write("Resultado:")
-    bw, bl = st.columns(2)
-    if bw.button("✅ WIN"): st.session_state.wins += 1; st.rerun()
-    if bl.button("❌ LOSS"): st.session_state.losses += 1; st.rerun()
+        # Lógica de Sinal Analítica
+        sinal = "AGUARDAR"
+        cor = "#333"
+        if preco_atual >= b_up: sinal = "VENDA 🔴"; cor = "#f87171"
+        elif preco_atual <= b_low: sinal = "COMPRA 🟢"; cor = "#4ade80"
+        else: sinal = "AGUARDAR ⚠️"; cor = "#30363d"
 
-# --- NOTÍCIAS ---
-st.markdown("### Notícias Importantes")
-n1, n2, n3 = st.columns(3)
-n1.markdown("<div class='news-blue'><b>Volume Nasdaq</b><br>Fluxo institucional detectado em moedas OTC.</div>", unsafe_allow_html=True)
-n2.markdown("<div class='news-yellow'><b>Zona do Euro</b><br>Decisão de taxas gera forte volatilidade em M1.</div>", unsafe_allow_html=True)
-n3.markdown("<div class='news-blue'><b>Bitcoin (BTC)</b><br>Suporte de preço confirmado por baleias.</div>", unsafe_allow_html=True)
+        if st.button("ANALISAR PRÓXIMA VELA"):
+            with st.spinner('Lendo dados da Bolsa...'):
+                time.sleep(1)
+                st.markdown(f"<div style='background:{cor}; padding:20px; border-radius:10px; text-align:center;'><h2>{sinal}</h2></div>", unsafe_allow_html=True)
+        
+        st.write("---")
+        b_w, b_l = st.columns(2)
+        if b_w.button("✅ WIN"): st.session_state.wins += 1; st.rerun()
+        if b_l.button("❌ LOSS"): st.session_state.losses += 1; st.rerun()
+
+else:
+    st.error("Servidor da Bolsa ocupado. Tentando reconectar...")
+    time.sleep(2)
+    st.rerun()
+
+def clamp(n, minn, maxn): return max(min(maxn, n), minn)
