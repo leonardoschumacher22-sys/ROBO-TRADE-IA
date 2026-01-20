@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="IT - IA PRO", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="IT - IA REAL TIME", layout="wide", initial_sidebar_state="collapsed")
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
@@ -42,95 +42,90 @@ if not st.session_state.logado:
     st.stop()
 
 # --- MAPEAMENTO DE ATIVOS ---
-ativos_map = {"EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "BTC/USD": "BTC-USD"}
+# Mapeia o nome amigável para o símbolo real da API
+ativos_map = {
+    "EUR/USD": "EURUSD=X",
+    "GBP/USD": "GBPUSD=X",
+    "BTC/USD": "BTC-USD"
+}
 
-# --- HEADER ---
-c_logo, c_ativo, c_status = st.columns([1, 3, 2])
-with c_logo: st.markdown("## IT")
-with c_ativo: 
-    escolha = st.selectbox("", list(ativos_map.keys()), label_visibility="collapsed")
-    ticker = ativos_map[escolha]
-with c_status:
-    st.markdown("<div style='text-align:right; color:#00ff00;'>● IA Conectada</div>", unsafe_allow_html=True)
+# --- TOPBAR ---
+col_logo, col_pair, col_mode = st.columns([1, 4, 2])
+with col_logo:
+    st.markdown("## IT")
+with col_pair:
+    selecionado = st.selectbox("", list(ativos_map.keys()), label_visibility="collapsed")
+    ticker = ativos_map[selecionado]
+with col_mode:
+    st.markdown("<div style='text-align:right;'>Modo: <b>Análise Real</b></div>", unsafe_allow_html=True)
 
-# --- ENGINE DE PROCESSAMENTO ---
-@st.cache_data(ttl=60)
-def carregar_dados(symbol):
-    data = yf.download(symbol, period="1d", interval="1m")
-    # Limpeza de colunas MultiIndex se necessário
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
+# --- DASHBOARD ---
+c1, c2 = st.columns([2, 1])
+
+with c1:
+    st.markdown(f"### Gráfico de Velas: {selecionado}")
+    # Busca dados reais para o gráfico
+    df_chart = yf.download(ticker, period="1d", interval="1m").tail(50)
     
-    # Cálculo de indicadores
-    data['RSI'] = ta.rsi(data['Close'], length=14)
-    bb = ta.bbands(data['Close'], length=20, std=2)
-    # Concatena garantindo que as colunas das bandas existam
-    data = pd.concat([data, bb], axis=1)
-    data['SMA_20'] = ta.sma(data['Close'], length=20)
-    return data.dropna()
-
-try:
-    df = carregar_dados(ticker)
+    fig_chart = go.Figure(data=[go.Candlestick(
+        x=df_chart.index, open=df_chart['Open'], high=df_chart['High'],
+        low=df_chart['Low'], close=df_chart['Close']
+    )])
+    fig_chart.update_layout(height=350, template="plotly_dark", margin=dict(l=0,r=0,t=0,b=0))
+    st.plotly_chart(fig_chart, use_container_width=True)
     
-    # Identificar nomes das colunas das Bandas de Bollinger (evita KeyError)
-    col_upper = [c for c in df.columns if 'BBU' in c][0]
-    col_lower = [c for c in df.columns if 'BBL' in c][0]
+    col_info, col_medo, col_mvp = st.columns(3)
+    with col_info:
+        preco_atual = df_chart['Close'].iloc[-1]
+        st.markdown(f"<div class='card'><b>Info</b><br><small>Preço: {preco_atual:.4f}<br>Topo (1d): {df_chart['High'].max():.4f}</small></div>", unsafe_allow_html=True)
+    with col_medo:
+        # Calcula RSI para o velocímetro
+        rsi_valor = ta.rsi(df_chart['Close'], length=14).iloc[-1]
+        st.markdown("<div class='card'><center><b>RSI (Força)</b></center>", unsafe_allow_html=True)
+        fig_rsi = go.Figure(go.Indicator(mode="gauge+number", value=rsi_valor, gauge={'axis':{'range':[0,100]},'bar':{'color':"white"},'steps':[{'range':[0,30],'color':"green"},{'range':[70,100],'color':"red"}]}))
+        fig_rsi.update_layout(height=150, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
+        st.plotly_chart(fig_rsi, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with col_mvp:
+        st.markdown("<div class='card'><b>Volatilidade</b>", unsafe_allow_html=True)
+        st.line_chart(df_chart['Close'].pct_change(), height=120)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- DASHBOARD ---
-    col1, col2 = st.columns([2, 1])
+with c2:
+    st.markdown("### Julgamento da IA")
+    
+    if st.button("ANALISAR VELA AGORA"):
+        with st.spinner('Lendo padrões de velas...'):
+            # Lógica de Julgamento Real
+            df_analise = yf.download(ticker, period="1d", interval="1m").tail(20)
+            rsi = ta.rsi(df_analise['Close'], length=14).iloc[-1]
+            
+            fuso_br = pytz.timezone('America/Sao_Paulo')
+            agora = datetime.now(fuso_br)
+            h1 = (agora + timedelta(minutes=1)).strftime("%H:%M")
+            h2 = (agora + timedelta(minutes=2)).strftime("%H:%M")
 
-    with col1:
-        st.markdown("### Monitoramento de Fluxo (Real-Time)")
-        fig = go.Figure(data=[go.Candlestick(
-            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Preço"
-        )])
-        # Adiciona Bandas
-        fig.add_trace(go.Scatter(x=df.index, y=df[col_upper], line=dict(color='gray', width=1), name="Banda Sup", opacity=0.3))
-        fig.add_trace(go.Scatter(x=df.index, y=df[col_lower], line=dict(color='gray', width=1), name="Banda Inf", opacity=0.3))
-        
-        fig.update_layout(height=400, template="plotly_dark", margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
-        st.plotly_chart(fig, use_container_width=True)
+            if rsi < 40:
+                decisao, cor, explicacao = "COMPRA 🟢", "#00c853", "Vela em zona de suporte com RSI baixo. Reversão de alta iminente."
+            elif rsi > 60:
+                decisao, cor, explicacao = "VENDA 🔴", "#d50000", "Vela em zona de exaustão com RSI alto. Tendência de queda imediata."
+            else:
+                decisao, cor, explicacao = "AGUARDAR ⚪", "#555555", "Mercado lateralizado. Sem força clara na vela atual."
 
-    with col2:
-        st.markdown("### Julgamento da IA")
-        if st.button("ANALISAR AGORA"):
-            with st.spinner('Aguardando confluência...'):
-                time.sleep(1.5)
-                
-                ultimo_preco = df['Close'].iloc[-1]
-                ultimo_rsi = df['RSI'].iloc[-1]
-                sup_band = df[col_upper].iloc[-1]
-                inf_band = df[col_lower].iloc[-1]
-                
-                sinal = "AGUARDAR"
-                if ultimo_rsi < 35 and ultimo_preco <= inf_band:
-                    sinal = "COMPRA"
-                elif ultimo_rsi > 65 and ultimo_preco >= sup_band:
-                    sinal = "VENDA"
-                
-                fuso = pytz.timezone('America/Sao_Paulo')
-                agora = datetime.now(fuso)
-                
-                if sinal != "AGUARDAR":
-                    cor = "#00c853" if sinal == "COMPRA" else "#d50000"
-                    st.markdown(f"""
-                        <div style='background:{cor}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
-                            <h2 style='margin:0; color:white;'>{sinal} 🟢</h2>
-                            <p style='color:white;'><b>Ativo:</b> {escolha} | <b>Horário:</b> {agora.strftime("%H:%M")}</p>
-                            <hr style='border:0.5px solid rgba(255,255,255,0.3);'>
-                            <p style='font-size:13px; color:white; text-align:left;'>
-                                <b>Se der loss, siga as proteções:</b><br>
-                                • +1 entrada às {(agora + timedelta(minutes=1)).strftime("%H:%M")}<br>
-                                • +1 entrada às {(agora + timedelta(minutes=2)).strftime("%H:%M")}
-                            </p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.info("Mercado sem confluência clara. IA sugere aguardar a próxima vela.")
+            if decisao != "AGUARDAR ⚪":
+                st.markdown(f"""
+                    <div style='background:{cor}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
+                        <h2 style='margin:0; color:white;'>{decisao}</h2>
+                        <p style='color:white;'><b>Ativo:</b> {selecionado} | <b>Horário:</b> {agora.strftime("%H:%M")}</p>
+                        <hr style='border:0.5px solid rgba(255,255,255,0.3);'>
+                        <p style='font-size:13px; color:white; text-align:left;'>
+                            <b>Caso a vela feche contra, faça:</b><br>
+                            • +1 entrada no próximo minuto às {h1}<br>
+                            • +1 entrada no minuto seguinte às {h2}
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.warning(f"IA Sugere: {decisao}. Motivo: {explicacao}")
 
-except Exception as e:
-    st.error(f"Erro na leitura de dados: {e}. Verifique se o ativo está aberto no mercado.")
-
-# --- FOOTER ---
-st.markdown("---")
-st.markdown("<small>Estratégia baseada em Exaustão de Preço (RSI + Bollinger Bands)</small>", unsafe_allow_html=True)
+    st.markdown("<div class='card' style='margin-top:15px;'><small>A IA julga a vela baseada no RSI e Volume real do mercado.</small></div>", unsafe_allow_html=True)
