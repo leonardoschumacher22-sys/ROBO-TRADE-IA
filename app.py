@@ -1,23 +1,27 @@
 import streamlit as st
+import time
 
-# --- TESTE MANUAL (SEM PLANILHA) ---
-def verificar_acesso(email_digitado):
-    # Coloque o seu e-mail exatamente aqui dentro da lista
-    lista_teste = ["leonardo.schumacher22@gmail.com"]
-    
-    email_limpo = email_digitado.strip().lower()
-    return email_limpo in lista_teste
+# --- ÁREA DE SINAIS ---
+st.title("🤖 Monitor IA - Sinais em Tempo Real")
 
-# --- INTERFACE ---
-st.sidebar.title("🔐 Teste de Acesso")
-usuario = st.sidebar.text_input("Digite seu e-mail para testar:")
+# Criando duas colunas: uma para o sinal e outra para o botão
+col1, col2 = st.columns([3, 1])
 
-if usuario:
-    if verificar_acesso(usuario):
-        st.sidebar.success("✅ ACESSO LIBERADO!")
-        st.title("🤖 Robô de Sinais IA - EM FUNCIONAMENTO")
-        
-        # Aqui você coloca o resto do seu código (Gráficos e Sinais)
-        st.info("📊 SINAL ATUAL: EUR/USD OTC | COMPRA 🟢")
-    else:
-        st.sidebar.error("E-mail não autorizado no teste.")
+with col2:
+    # O botão de atualizar. Quando clicado, o Streamlit recarrega o app.
+    if st.button('🔄 ATUALIZAR AGORA'):
+        st.toast("Buscando novos dados do mercado...")
+        time.sleep(1) # Pequeno delay para simular processamento
+
+with col1:
+    # Aqui entra a sua lógica de análise (Real ou Simulação)
+    # Exemplo de exibição do sinal:
+    st.markdown("""
+        <div style="background-color: #1e2130; padding: 20px; border-radius: 10px; border: 2px solid #00ff00;">
+            <h3 style="color: white; margin: 0;">PARIDADE: EUR/USD OTC</h3>
+            <h1 style="color: #00ff00; margin: 10px 0;">SINAL: COMPRA 🟢</h1>
+            <p style="color: gray;">Analisado em: """ + time.strftime("%H:%M:%S") + """</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+st.caption("Clique no botão acima para forçar uma nova varredura da IA.")
