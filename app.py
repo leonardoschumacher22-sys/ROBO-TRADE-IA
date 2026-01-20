@@ -4,7 +4,8 @@ import numpy as np
 import time
 import random
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz # Necessário para o horário de Brasília
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
@@ -86,7 +87,6 @@ with c1:
 
 with c2:
     st.markdown("### Análise com I.A")
-    # Indicadores de força
     p_cima, p_baixo = st.columns(2)
     p_cima.markdown("<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>68%<br>Cima</div>", unsafe_allow_html=True)
     p_baixo.markdown("<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>32%<br>Baixo</div>", unsafe_allow_html=True)
@@ -99,24 +99,23 @@ with c2:
             decisao = random.choice(["COMPRA 🟢", "VENDA 🔴"])
             cor_bg = "#00c853" if "COMPRA" in decisao else "#d50000"
             confianca = random.randint(91, 98)
-            horario = datetime.now().strftime("%H:%M")
             
-            # SINAL COM TODAS AS INFORMAÇÕES QUE VOCÊ PEDIU
+            # CONFIGURAÇÃO DO HORÁRIO DE BRASÍLIA
+            fuso_br = pytz.timezone('America/Sao_Paulo')
+            agora = datetime.now(fuso_br)
+            h_entrada = agora.strftime("%H:%M")
+            h_gale1 = (agora + timedelta(minutes=1)).strftime("%H:%M")
+            h_gale2 = (agora + timedelta(minutes=2)).strftime("%H:%M")
+            
+            # SINAL COM LINGUAGEM PARA LEIGOS
             st.markdown(f"""
                 <div style='background:{cor_bg}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
                     <h2 style='margin:0; color:white;'>{decisao}</h2>
                     <p style='margin:5px 0; font-weight:bold; color:white;'>ATIVO: {ativo_selecionado}</p>
-                    <p style='margin:0; color:white;'>Confiança: {confianca}% | Horário: {horario}</p>
+                    <p style='margin:0; color:white;'>Confiança: {confianca}% | Início: {h_entrada}</p>
                     <hr style='margin:10px 0; border:0.5px solid rgba(255,255,255,0.3);'>
-                    <p style='margin:0; font-size:13px; color:white;'><b>PROTEÇÕES:</b> Entrada + 2 GALE (Se necessário)</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-    st.markdown("<div class='card' style='margin-top:15px;'><b>Explicação</b><br><small>IA identificou fluxo agressivo e exaustão de preço.</small></div>", unsafe_allow_html=True)
-
-# Notícias
-st.markdown("---")
-n1, n2, n3 = st.columns(3)
-n1.info("BTC mantém suporte em 60k.")
-n2.warning("Alerta de volatilidade em OTC.")
-n3.info("Mercado aguarda dados do FED.")
+                    <p style='margin:0; font-size:13px; color:white; text-align:left;'>
+                        <b>Caso não ganhe de primeira:</b><br>
+                        • +1 entrada no próximo minuto ({h_gale1})<br>
+                        • +1 entrada no minuto seguinte ({h_gale2})
+                    </p
