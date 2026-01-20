@@ -1,27 +1,29 @@
 import streamlit as st
 import pandas as pd
 
-# COLE O LINK DO CSV DA PLANILHA AQUI
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/e/SUA_ID/pub?output=csv"
+# Link do CSV da sua planilha (Publicar na Web)
+URL_PLANILHA = "COLE_AQUI_SEU_LINK_TERMINADO_EM_CSV"
 
 def verificar_acesso(email_digitado):
     try:
-        # Lê a planilha sempre que alguém tenta logar
+        # Lê a planilha e remove espaços em branco
         df = pd.read_csv(URL_PLANILHA)
-        # Verifica se o email digitado está na coluna 'E-mail'
-        return email_digitado.strip().lower() in df['E-mail'].str.lower().values
+        # Transforma tudo em minúsculo para comparar sem erros
+        emails_vips = df['E-mail'].str.strip().str.lower().tolist()
+        return email_digitado.strip().lower() in emails_vips
     except Exception as e:
+        # Se der erro na leitura, mostra o motivo para facilitar o conserto
+        st.sidebar.error(f"Erro de conexão com o banco: {e}")
         return False
 
-# --- INTERFACE ---
+# Interface
 st.sidebar.title("🔐 Login do Assinante")
-email_input = st.sidebar.text_input("Digite seu e-mail:")
+usuario = st.sidebar.text_input("Digite seu e-mail:")
 
-if email_input:
-    if verificar_acesso(email_input):
-        st.sidebar.success("Acesso Liberado!")
-        st.title("🤖 Robô de Sinais OTC")
-        # Aqui entra o seu código de sinais que já criamos...
+if usuario:
+    if verificar_acesso(usuario):
+        st.success("✅ ACESSO LIBERADO!")
+        st.title("🤖 Painel de Sinais IA - OTC")
+        # Coloque o resto do código do seu robô aqui...
     else:
-        st.sidebar.error("E-mail não encontrado.")
-        st.error("Assinatura inativa ou e-mail incorreto.")
+        st.error("❌ E-mail não encontrado na base de assinantes.")
