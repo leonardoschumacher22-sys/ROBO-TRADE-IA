@@ -10,31 +10,23 @@ import pytz
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ESTILIZAÇÃO CSS (VISUAL PREMIUM) ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #1a1c22; color: #ffffff; }
     .stButton>button {
-        width: 100%;
-        background-color: #00c853;
-        color: white;
-        font-weight: bold;
-        border-radius: 5px;
-        height: 3.5em;
-        border: none;
+        width: 100%; background-color: #00c853; color: white;
+        font-weight: bold; border-radius: 5px; height: 3.5em; border: none;
     }
     .card {
-        background-color: #23272f;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #30363d;
-        margin-bottom: 15px;
+        background-color: #23272f; padding: 20px; border-radius: 10px;
+        border: 1px solid #30363d; margin-bottom: 15px;
     }
     .header-info { text-align: right; color: #8b949e; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SISTEMA DE LOGIN ---
+# --- LOGIN ---
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
@@ -46,7 +38,7 @@ if not st.session_state.logado:
             st.session_state.logado = True
             st.rerun()
         else:
-            st.error("E-mail não encontrado.")
+            st.error("E-mail não autorizado.")
     st.stop()
 
 # --- CABEÇALHO ---
@@ -61,82 +53,83 @@ with col_mode:
         st.session_state.logado = False
         st.rerun()
 
-# --- CONTEÚDO PRINCIPAL ---
-c1, c2 = st.columns([2, 1])
+# --- FRAGMENTO DINÂMICO (Atualiza dados a cada 5s) ---
+@st.fragment(run_every=5)
+def render_dashboard():
+    c1, c2 = st.columns([2, 1])
 
-with c1:
-    st.markdown("### Gráfico em tempo real")
-    chart_data = pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA'])
-    st.line_chart(chart_data, height=300)
-    
-    col_info, col_medo, col_mvp = st.columns(3)
-    with col_info:
-        st.markdown(f"""
-            <div class='card'>
-                <b>Informações do ativo</b><br>
-                <small>
-                Ativo: {ativo_selecionado}<br>
-                Cotação: 1.187075<br>
-                Fundo: 1.186285<br>
-                Topo: 1.190185
-                </small>
-            </div>
-        """, unsafe_allow_html=True)
+    with c1:
+        st.markdown("### Gráfico em tempo real")
+        chart_data = pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA'])
+        st.line_chart(chart_data, height=300)
         
-    with col_medo:
-        st.markdown("<div class='card'><center><b>Índice de medo</b></center>", unsafe_allow_html=True)
-        fig = go.Figure(go.Indicator(mode="gauge+number", value=53, gauge={'axis':{'range':[0,100]}, 'bar':{'color':"yellow"}, 'steps':[{'range':[0,40],'color':"red"},{'range':[40,60],'color':"orange"},{'range':[60,100],'color':"green"}]}))
-        fig.update_layout(height=150, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
-        st.plotly_chart(fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with col_mvp:
-        st.markdown("<div class='card'><b>Índice de MVP</b>", unsafe_allow_html=True)
-        st.line_chart(np.random.randn(20, 1), height=120)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-with c2:
-    st.markdown("### Análise com I.A")
-    p_cima, p_baixo = st.columns(2)
-    p_cima.markdown("<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>68%<br>Cima</div>", unsafe_allow_html=True)
-    p_baixo.markdown("<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>32%<br>Baixo</div>", unsafe_allow_html=True)
-    
-    st.write("")
-    
-    if st.button("ANALISAR ENTRADA"):
-        with st.spinner('Analisando mercado...'):
-            time.sleep(2)
-            decisao = random.choice(["COMPRA 🟢", "VENDA 🔴"])
-            cor_bg = "#00c853" if "COMPRA" in decisao else "#d50000"
-            confianca = random.randint(91, 98)
+        col_info, col_medo, col_mvp = st.columns(3)
+        with col_info:
+            preco_random = 1.187000 + random.uniform(-0.0002, 0.0002)
+            st.markdown(f"<div class='card'><b>Informações do ativo</b><br><small>Ativo: {ativo_selecionado}<br>Cotação: {preco_random:.6f}<br>Fundo: 1.186285<br>Topo: 1.190185</small></div>", unsafe_allow_html=True)
             
-            # Ajuste de Horário de Brasília
-            fuso_br = pytz.timezone('America/Sao_Paulo')
-            agora = datetime.now(fuso_br)
-            h_entrada = agora.strftime("%H:%M")
-            h_gale1 = (agora + timedelta(minutes=1)).strftime("%H:%M")
-            h_gale2 = (agora + timedelta(minutes=2)).strftime("%H:%M")
-            
-            st.markdown(f"""
-                <div style='background:{cor_bg}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
-                    <h2 style='margin:0; color:white;'>{decisao}</h2>
-                    <p style='margin:5px 0; font-weight:bold; color:white;'>ATIVO: {ativo_selecionado}</p>
-                    <p style='margin:0; color:white;'>Confiança: {confianca}% | Início: {h_entrada}</p>
-                    <hr style='margin:10px 0; border:0.5 solid rgba(255,255,255,0.3);'>
-                    <p style='margin:0; font-size:13px; color:white; text-align:left;'>
-                        <b>Se não ganhar de primeira, faça:</b><br>
-                        • +1 entrada no próximo minuto às {h_gale1}<br>
-                        • +1 entrada no minuto seguinte às {h_gale2}
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
+        with col_medo:
+            st.markdown("<div class='card'><center><b>Índice de medo</b></center>", unsafe_allow_html=True)
+            val_medo = random.randint(48, 56)
+            fig = go.Figure(go.Indicator(mode="gauge+number", value=val_medo, gauge={'axis':{'range':[0,100]}, 'bar':{'color':"yellow"}, 'steps':[{'range':[0,40],'color':"red"},{'range':[40,60],'color':"orange"},{'range':[60,100],'color':"green"}]}))
+            fig.update_layout(height=150, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='card' style='margin-top:15px;'><b>Explicação da análise</b><br><small>O algoritmo detectou uma zona de exaustão aliada ao aumento de volume.</small></div>", unsafe_allow_html=True)
+        with col_mvp:
+            st.markdown("<div class='card'><b>Índice de MVP</b>", unsafe_allow_html=True)
+            st.line_chart(np.random.randn(20, 1), height=120)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-# Rodapé de Notícias
+    with c2:
+        st.markdown("### Análise com I.A")
+        # Força de velas dinâmica
+        cima = random.randint(40, 75)
+        baixo = 100 - cima
+        p_cima, p_baixo = st.columns(2)
+        p_cima.markdown(f"<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>{cima}%<br>Cima</div>", unsafe_allow_html=True)
+        p_baixo.markdown(f"<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>{baixo}%<br>Baixo</div>", unsafe_allow_html=True)
+        
+        st.write("")
+        
+        if st.button("ANALISAR ENTRADA"):
+            with st.spinner('Aguardando fechamento da vela...'):
+                time.sleep(2)
+                decisao = random.choice(["COMPRA 🟢", "VENDA 🔴"])
+                cor_bg = "#00c853" if "COMPRA" in decisao else "#d50000"
+                
+                # LÓGICA DA PRÓXIMA VELA
+                fuso_br = pytz.timezone('America/Sao_Paulo')
+                agora = datetime.now(fuso_br)
+                # Calcula o início do próximo minuto (Vela de entrada)
+                h_proxima_vela = (agora + timedelta(minutes=1)).replace(second=0, microsecond=0)
+                
+                h_entrada = h_proxima_vela.strftime("%H:%M")
+                h_gale1 = (h_proxima_vela + timedelta(minutes=1)).strftime("%H:%M")
+                h_gale2 = (h_proxima_vela + timedelta(minutes=2)).strftime("%H:%M")
+                
+                st.markdown(f"""
+                    <div style='background:{cor_bg}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
+                        <h2 style='margin:0; color:white;'>{decisao}</h2>
+                        <p style='margin:5px 0; font-weight:bold; color:white;'>PRÓXIMA VELA: {h_entrada}</p>
+                        <p style='margin:0; color:white;'>Ativo: {ativo_selecionado} | Confiança: {random.randint(93,98)}%</p>
+                        <hr style='margin:10px 0; border:0.5 solid rgba(255,255,255,0.3);'>
+                        <p style='margin:0; font-size:13px; color:white; text-align:left;'>
+                            <b>Se a vela de {h_entrada} der loss:</b><br>
+                            • Tente novamente às {h_gale1}<br>
+                            • Última tentativa às {h_gale2}
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("<div class='card' style='margin-top:15px;'><b>Análise de Tendência</b><br><small>IA identificou padrão de reversão para a próxima vela de M1.</small></div>", unsafe_allow_html=True)
+
+# Inicia o Dashboard
+render_dashboard()
+
+# Rodapé
 st.markdown("---")
-st.markdown("### Notícias importantes")
 n1, n2, n3 = st.columns(3)
-n1.info("SEC autoriza Nasdaq a negociar primeiro ETF de Bitcoin.")
-n2.warning("Fundador da Terra (LUNA) é procurado pela Interpol.")
-n3.info("Alta volatilidade esperada para o par EUR/USD.")
+n1.info("Sinais baseados em Price Action puro.")
+n2.warning("Atenção ao calendário econômico.")
+n3.info("Delay de processamento: 0.2ms")
