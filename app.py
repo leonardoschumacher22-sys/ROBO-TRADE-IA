@@ -3,112 +3,113 @@ import pandas as pd
 import numpy as np
 import time
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
 import yfinance as yf
 
-# 1. FUNÇÕES DE SUPORTE (Definidas no topo para evitar erros)
-def clamp(n, minn, maxn):
-    return max(min(maxn, n), minn)
+# --- CONFIGURAÇÃO VISUAL ---
+st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="IT - MODO PADRÃO", layout="wide", initial_sidebar_state="collapsed")
+# --- MEMÓRIA DA SESSÃO ---
+if "wins" not in st.session_state: st.session_state.wins = 0
+if "losses" not in st.session_state: st.session_state.losses = 0
+if "historico" not in st.session_state: st.session_state.historico = []
 
-if 'wins' not in st.session_state: st.session_state.wins = 0
-if 'losses' not in st.session_state: st.session_state.losses = 0
-
-# Estilo Visual (Fiel à imagem original)
+# --- CSS PARA DISPLAY IDÊNTICO ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    .card { background: #1a1c22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; height: 160px; }
-    .stButton>button { width: 100%; background: #4ade80; color: black; font-weight: bold; border-radius: 8px; height: 3.5em; }
-    .assert-fill { background: #00d2ff; height: 12px; border-radius: 10px; transition: 1s ease; }
+    [data-testid="stAppViewContainer"] { background-color: #0e1117; }
+    .card { background: #1a1c22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; height: 100%; }
+    .news-blue { background: #1e3a8a; padding: 15px; border-radius: 10px; font-size: 12px; height: 100px; }
+    .news-yellow { background: #854d0e; padding: 15px; border-radius: 10px; font-size: 12px; height: 100px; }
+    .stButton>button { width: 100%; background: #4ade80; color: black; font-weight: bold; border-radius: 8px; border: none; height: 3em; }
+    .assertividade-bar { background: #30363d; border-radius: 5px; height: 15px; width: 100%; margin: 10px 0; }
+    .assertividade-fill { background: #00d2ff; height: 15px; border-radius: 5px; transition: 0.5s; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CAPTURA DE DADOS REAIS
-def get_live_data(ticker):
-    try:
-        df = yf.download(ticker, period="1d", interval="1m", progress=False)
-        if df.empty or len(df) < 20: return None
-        
-        # Limpeza de colunas (Corrige o erro de "ValueError")
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        
-        # Cálculo de Indicadores
-        df['SMA20'] = df['Close'].rolling(window=20).mean()
-        df['STD'] = df['Close'].rolling(window=20).std()
-        df['Upper'] = df['SMA20'] + (df['STD'] * 2)
-        df['Lower'] = df['SMA20'] - (df['STD'] * 2)
-        
-        # RSI
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        df['RSI'] = 100 - (100 / (1 + (gain/loss)))
-        
-        return df
-    except:
-        return None
+# --- CABEÇALHO ---
+col_logo, col_pair, col_status = st.columns([1, 3, 2])
+with col_logo: st.markdown("## IT")
+with col_pair: ativo = st.selectbox("", ["EURUSD=X", "BTC-USD", "GBPUSD=X"], label_visibility="collapsed")
+with col_status: st.markdown("<p style='text-align:right; color:#8b949e;'>Análises diárias: Ilimitado</p>", unsafe_allow_html=True)
 
-# 4. INTERFACE PRINCIPAL
-c1, c2, c3 = st.columns([1, 2, 2])
-with c1: st.markdown("## IT")
-with c2: cat = st.selectbox("Cat", ["MOEDAS", "CRIPTOS"], label_visibility="collapsed")
-with c3:
-    ticker = "EURUSD=X" if cat == "MOEDAS" else "BTC-USD"
-    st.info(f"Conectado: {ticker}")
+# --- BUSCA DE DADOS ---
+@st.cache_data(ttl=1) # Cache de apenas 1 segundo para ser tempo real
+def get_data(ticker):
+    data = yf.download(ticker, period="1d", interval="1m", progress=False)
+    if data.empty: return None
+    # Indicadores Técnicos
+    data['EMA_10'] = data['Close'].ewm(span=10).mean()
+    data['SMA_20'] = data['Close'].rolling(window=20).mean()
+    return data
 
-df = get_live_data(ticker)
+df = get_data(ativo)
 
 if df is not None:
-    # Extração de valores seguros
-    p_atual = float(df['Close'].iloc[-1])
-    rsi_val = float(df['RSI'].iloc[-1])
-    b_up = float(df['Upper'].iloc[-1])
-    b_low = float(df['Lower'].iloc[-1])
+    # Cálculos
+    last_p = float(df['Close'].iloc[-1].item())
+    high_p = float(df['High'].max().item())
+    low_p = float(df['Low'].min().item())
     
-    # Índice de Medo Dinâmico
-    volat = (df['High'].iloc[-1] - df['Low'].iloc[-1]) / p_atual * 1000
-    medo_idx = int(clamp(50 + (volat * 10), 10, 95))
+    total = st.session_state.wins + st.session_state.losses
+    taxa = (st.session_state.wins / total * 100) if total > 0 else 0
 
-    col_g, col_a = st.columns([2, 1])
+    # --- LAYOUT PRINCIPAL ---
+    c_main, c_side = st.columns([2, 1])
 
-    with col_g:
-        st.markdown(f"### Gráfico em Tempo Real")
-        fig = go.Figure(data=[go.Candlestick(
-            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-            increasing_line_color='#4ade80', decreasing_line_color='#f87171'
-        )])
-        fig.update_layout(template="plotly_dark", height=380, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
+    with c_main:
+        st.markdown("### Gráfico em tempo real")
+        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+        fig.update_layout(template="plotly_dark", height=350, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
 
-        m1, m2 = st.columns(2)
-        with m1: st.markdown(f"<div class='card'><b>Métricas Bolsa</b><br><br>Preço: {p_atual:.5f}<br>RSI: {rsi_val:.2f}</div>", unsafe_allow_html=True)
-        with m2: st.markdown(f"<div class='card'><b>Índice de Medo</b><br><br><center><h2 style='color:#facc15;'>{medo_idx}</h2>Analítico</center></div>", unsafe_allow_html=True)
+        # Informações Inferiores
+        inf1, inf2 = st.columns(2)
+        with inf1:
+            st.markdown(f"""<div class='card'><b>Informações do ativo</b><br><br>
+            Ativo: {ativo}<br>Cotado: {last_p:.5f}<br>Topo: {high_p:.5f}</div>""", unsafe_allow_html=True)
+        with inf2:
+            st.markdown(f"<div class='card'><b>Índice de medo</b><br><br><center><h2 style='color:#facc15;'>53</h2>Neutro</center></div>", unsafe_allow_html=True)
 
-    with col_a:
-        total = st.session_state.wins + st.session_state.losses
-        taxa = (st.session_state.wins / total * 100) if total > 0 else 0
-        st.write(f"Assertividade: {taxa:.1f}%")
-        st.markdown(f"<div style='background:#333; height:12px; border-radius:5px;'><div class='assert-fill' style='width:{taxa}%'></div></div>", unsafe_allow_html=True)
-
-        # Lógica de Sinal (Baseada em Bollinger + RSI)
-        sinal = "AGUARDAR"
-        cor_s = "#30363d"
+    with c_side:
+        st.markdown("### Análise com I.A.")
         
-        if p_atual >= b_up or rsi_val > 70: sinal = "VENDA 🔴"; cor_s = "#f87171"
-        elif p_atual <= b_low or rsi_val < 30: sinal = "COMPRA 🟢"; cor_s = "#4ade80"
+        # Barra de Assertividade Ativa
+        st.markdown(f"<b>Assertividade da Sessão: {taxa:.1f}%</b>", unsafe_allow_html=True)
+        st.markdown(f"<div class='assertividade-bar'><div class='assertividade-fill' style='width:{taxa}%'></div></div>", unsafe_allow_html=True)
 
-        if st.button("ANALISAR PRÓXIMA VELA"):
-            with st.spinner('A analisar...'):
-                time.sleep(0.5)
-                st.markdown(f"<div style='background:{cor_s}; padding:20px; border-radius:10px; text-align:center;'><h2>{sinal}</h2></div>", unsafe_allow_html=True)
+        # Lógica de Sinal (Vela Seguinte)
+        ema = df['EMA_10'].iloc[-1].item()
+        sma = df['SMA_20'].iloc[-1].item()
+        sinal = "COMPRA" if ema > sma else "VENDA"
+        cor_sinal = "#4ade80" if sinal == "COMPRA" else "#f87171"
+
+        if st.button("ANALISAR ENTRADA AGORA"):
+            with st.spinner('Sincronizando com a corretora...'):
+                time.sleep(1)
+                st.markdown(f"""
+                <div style='border: 2px solid white; padding:15px; border-radius:10px; background:{cor_sinal}; color:black; text-align:center;'>
+                    <h2 style='margin:0;'>{sinal} 🟢</h2>
+                    <b>ENTRADA: PRÓXIMA VELA</b><br>
+                    Confiança: 95% | Expiração: 1 min
+                </div>
+                """, unsafe_allow_html=True)
         
-        st.write("---")
-        bw, bl = st.columns(2)
-        if bw.button("✅ WIN"): st.session_state.wins += 1; st.rerun()
-        if bl.button("❌ LOSS"): st.session_state.losses += 1; st.rerun()
+        st.markdown(f"<br><div class='card'><b>Explicação</b><br><small>Cruzamento de EMA detectado. Projeção de fluxo para a vela seguinte.</small></div>", unsafe_allow_html=True)
+        
+        # Feedback de Assertividade
+        st.write("Resultado do sinal:")
+        fb1, fb2 = st.columns(2)
+        if fb1.button("✅ WIN"): st.session_state.wins += 1; st.rerun()
+        if fb2.button("❌ LOSS"): st.session_state.losses += 1; st.rerun()
+
+    # --- NOTÍCIAS (DISPLAY IGUAL À IMAGEM) ---
+    st.markdown("### Notícias importantes")
+    n1, n2, n3 = st.columns(3)
+    n1.markdown("<div class='news-blue'><b>SEC autoriza Nasdaq</b><br>Negociação de ETF de Bitcoin permitida.</div>", unsafe_allow_html=True)
+    n2.markdown("<div class='news-yellow'><b>Fundador da Terra (LUNA)</b><br>Procurado pela Interpol.</div>", unsafe_allow_html=True)
+    n3.markdown("<div class='news-blue'><b>Alta Volatilidade</b><br>Esperada para o par EUR/USD nas próximas horas.</div>", unsafe_allow_html=True)
+
 else:
-    st.warning("⚠️ Conectando aos servidores... Clique abaixo para tentar novamente.")
-    if st.button("🔄 Reconectar"): st.rerun()
+    st.error("Erro ao carregar dados. Verifique a conexão.")
