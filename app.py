@@ -1,29 +1,23 @@
 import streamlit as st
-import pandas as pd
 
-# Link do CSV da sua planilha (Publicar na Web)
-URL_PLANILHA = "COLE_AQUI_SEU_LINK_TERMINADO_EM_CSV"
-
+# --- TESTE MANUAL (SEM PLANILHA) ---
 def verificar_acesso(email_digitado):
-    try:
-        # Lê a planilha e remove espaços em branco
-        df = pd.read_csv(URL_PLANILHA)
-        # Transforma tudo em minúsculo para comparar sem erros
-        emails_vips = df['E-mail'].str.strip().str.lower().tolist()
-        return email_digitado.strip().lower() in emails_vips
-    except Exception as e:
-        # Se der erro na leitura, mostra o motivo para facilitar o conserto
-        st.sidebar.error(f"Erro de conexão com o banco: {e}")
-        return False
+    # Coloque o seu e-mail exatamente aqui dentro da lista
+    lista_teste = ["leonardo.schumacher22@gmail.com"]
+    
+    email_limpo = email_digitado.strip().lower()
+    return email_limpo in lista_teste
 
-# Interface
-st.sidebar.title("🔐 Login do Assinante")
-usuario = st.sidebar.text_input("Digite seu e-mail:")
+# --- INTERFACE ---
+st.sidebar.title("🔐 Teste de Acesso")
+usuario = st.sidebar.text_input("Digite seu e-mail para testar:")
 
 if usuario:
     if verificar_acesso(usuario):
-        st.success("✅ ACESSO LIBERADO!")
-        st.title("🤖 Painel de Sinais IA - OTC")
-        # Coloque o resto do código do seu robô aqui...
+        st.sidebar.success("✅ ACESSO LIBERADO!")
+        st.title("🤖 Robô de Sinais IA - EM FUNCIONAMENTO")
+        
+        # Aqui você coloca o resto do seu código (Gráficos e Sinais)
+        st.info("📊 SINAL ATUAL: EUR/USD OTC | COMPRA 🟢")
     else:
-        st.error("❌ E-mail não encontrado na base de assinantes.")
+        st.sidebar.error("E-mail não autorizado no teste.")
