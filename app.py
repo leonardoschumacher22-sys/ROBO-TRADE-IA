@@ -1,3 +1,6 @@
+código fonte:
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,32 +13,29 @@ import pytz
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ESTILIZAÇÃO CSS ---
+# --- ESTILIZAÇÃO CSS (VISUAL PREMIUM) ---
 st.markdown("""
     <style>
     .main { background-color: #1a1c22; color: #ffffff; }
     .stButton>button {
-        width: 100%; background-color: #00c853; color: white;
-        font-weight: bold; border-radius: 5px; height: 3.5em; border: none;
+        width: 100%;
+        background-color: #00c853;
+        color: white;
+        font-weight: bold;
+        border-radius: 5px;
+        height: 3.5em;
+        border: none;
     }
     .card {
-        background-color: #23272f; padding: 20px; border-radius: 10px;
-        border: 1px solid #30363d; margin-bottom: 15px;
+        background-color: #23272f;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #30363d;
+        margin-bottom: 15px;
     }
-    .metric-box {
-        padding: 10px; text-align: center; border-radius: 5px; font-weight: bold; font-size: 20px;
-    }
+    .header-info { text-align: right; color: #8b949e; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
-
-# --- INICIALIZAÇÃO DO ESTADO (Garante o 0% no início) ---
-if "p_cima" not in st.session_state:
-    st.session_state.update({
-        "p_cima": 0,
-        "p_baixo": 0,
-        "sinal_html": "",
-        "explicacao": "Aguardando solicitação de análise..."
-    })
 
 # --- SISTEMA DE LOGIN ---
 if "logado" not in st.session_state:
@@ -48,42 +48,98 @@ if not st.session_state.logado:
         if email.strip().lower() == "leonardo.schumacher22@gmail.com":
             st.session_state.logado = True
             st.rerun()
+        else:
+            st.error("E-mail não encontrado.")
     st.stop()
 
 # --- CABEÇALHO ---
 col_logo, col_pair, col_mode = st.columns([1, 4, 2])
-with col_logo: st.markdown("## IT")
+with col_logo:
+    st.markdown("## IT")
 with col_pair:
-    ativo = st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"], label_visibility="collapsed")
+    ativo_selecionado = st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"], label_visibility="collapsed")
 with col_mode:
-    st.markdown("<div style='text-align:right; color:#8b949e;'>Análises: <b>Ilimitado</b></div>", unsafe_allow_html=True)
+    st.markdown("<div class='header-info'>Análises diárias restantes: <b>Ilimitado</b></div>", unsafe_allow_html=True)
+    if st.button("Sair do modo Pro"):
+        st.session_state.logado = False
+        st.rerun()
 
-# --- CONTEÚDO PRINCIPAL (Fragmento para evitar lag) ---
-@st.fragment(run_every=2)
-def live_dashboard():
-    c1, c2 = st.columns([2, 1])
+# --- CONTEÚDO PRINCIPAL ---
+c1, c2 = st.columns([2, 1])
 
-    with c1:
-        st.markdown("### Monitoramento de Fluxo")
-        # Gráfico simples para evitar KeyError
-        chart_df = pd.DataFrame(np.random.randn(30, 1), columns=["Preço"])
-        st.line_chart(chart_df, height=250)
+with c1:
+    st.markdown("### Gráfico em tempo real")
+    chart_data = pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA'])
+    st.line_chart(chart_data, height=300)
+    
+    col_info, col_medo, col_mvp = st.columns(3)
+    with col_info:
+        st.markdown(f"""
+            <div class='card'>
+                <b>Informações do ativo</b><br>
+                <small>
+                Ativo: {ativo_selecionado}<br>
+                Cotação: 1.187075<br>
+                Fundo: 1.186285<br>
+                Topo: 1.190185
+                </small>
+            </div>
+        """, unsafe_allow_html=True)
         
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.markdown(f"<div class='card'><b>{ativo}</b><br><small>Cotação: {1.1870 + random.uniform(-0.001, 0.001):.5f}</small></div>", unsafe_allow_html=True)
-        with m2:
-            val = random.randint(45, 55)
-            fig = go.Figure(go.Indicator(mode="gauge+number", value=val, gauge={'axis':{'range':[0,100]},'bar':{'color':"yellow"}}))
-            fig.update_layout(height=140, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
-            st.plotly_chart(fig, use_container_width=True)
-        with m3:
-            st.markdown("<div class='card'><b>MVP</b><br><small>Volume Estável</small></div>", unsafe_allow_html=True)
+    with col_medo:
+        st.markdown("<div class='card'><center><b>Índice de medo</b></center>", unsafe_allow_html=True)
+        fig = go.Figure(go.Indicator(mode="gauge+number", value=53, gauge={'axis':{'range':[0,100]}, 'bar':{'color':"yellow"}, 'steps':[{'range':[0,40],'color':"red"},{'range':[40,60],'color':"orange"},{'range':[60,100],'color':"green"}]}))
+        fig.update_layout(height=150, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with c2:
-        st.markdown("### Análise com I.A")
-        
-        # Exibição das porcentagens
-        pc_col, pb_col = st.columns(2)
-        pc_col.markdown(f"<div class='metric-box' style='background:#1b4332; color:#00ff00;'>{st.session_state.p_cima}%<br><span style='font-size:12px;'>Cima</span></div>", unsafe_allow_html=True)
-        pb_col.markdown(f"<div class='metric-box' style='background:#432818; color:#ff4b4b;'>{st.session_state.p_baixo}%
+    with col_mvp:
+        st.markdown("<div class='card'><b>Índice de MVP</b>", unsafe_allow_html=True)
+        st.line_chart(np.random.randn(20, 1), height=120)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+with c2:
+    st.markdown("### Análise com I.A")
+    p_cima, p_baixo = st.columns(2)
+    p_cima.markdown("<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>68%<br>Cima</div>", unsafe_allow_html=True)
+    p_baixo.markdown("<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>32%<br>Baixo</div>", unsafe_allow_html=True)
+    
+    st.write("")
+    
+    if st.button("ANALISAR ENTRADA"):
+        with st.spinner('Analisando mercado...'):
+            time.sleep(2)
+            decisao = random.choice(["COMPRA 🟢", "VENDA 🔴"])
+            cor_bg = "#00c853" if "COMPRA" in decisao else "#d50000"
+            confianca = random.randint(91, 98)
+            
+            # Ajuste de Horário de Brasília
+            fuso_br = pytz.timezone('America/Sao_Paulo')
+            agora = datetime.now(fuso_br)
+            h_entrada = agora.strftime("%H:%M")
+            h_gale1 = (agora + timedelta(minutes=1)).strftime("%H:%M")
+            h_gale2 = (agora + timedelta(minutes=2)).strftime("%H:%M")
+            
+            st.markdown(f"""
+                <div style='background:{cor_bg}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
+                    <h2 style='margin:0; color:white;'>{decisao}</h2>
+                    <p style='margin:5px 0; font-weight:bold; color:white;'>ATIVO: {ativo_selecionado}</p>
+                    <p style='margin:0; color:white;'>Confiança: {confianca}% | Início: {h_entrada}</p>
+                    <hr style='margin:10px 0; border:0.5 solid rgba(255,255,255,0.3);'>
+                    <p style='margin:0; font-size:13px; color:white; text-align:left;'>
+                        <b>Se não ganhar de primeira, faça:</b><br>
+                        • +1 entrada no próximo minuto às {h_gale1}<br>
+                        • +1 entrada no minuto seguinte às {h_gale2}
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<div class='card' style='margin-top:15px;'><b>Explicação da análise</b><br><small>O algoritmo detectou uma zona de exaustão aliada ao aumento de volume.</small></div>", unsafe_allow_html=True)
+
+# Rodapé de Notícias
+st.markdown("---")
+st.markdown("### Notícias importantes")
+n1, n2, n3 = st.columns(3)
+n1.info("SEC autoriza Nasdaq a negociar primeiro ETF de Bitcoin.")
+n2.warning("Fundador da Terra (LUNA) é procurado pela Interpol.")
+n3.info("Alta volatilidade esperada para o par EUR/USD.")
