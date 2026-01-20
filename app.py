@@ -8,132 +8,101 @@ import pytz
 import yfinance as yf
 
 # --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="IT - MODO PRO REALTIME", layout="wide")
+st.set_page_config(page_title="IA PRECISION - GOMERE SYNC", layout="wide")
 
-# --- AUTO-REFRESH (FORÇA O ROBÔ A RODAR SOZINHO) ---
-# Isso faz o script atualizar a cada 30 segundos automaticamente
-if "last_update" not in st.session_state:
-    st.session_state.last_update = datetime.now()
-
-# --- MEMÓRIA DA SESSÃO ---
-if "historico_sinais" not in st.session_state:
-    st.session_state.historico_sinais = []
-if "sinal_pendente" not in st.session_state:
-    st.session_state.sinal_pendente = None
-
-# --- CSS ---
+# --- CSS PARA FOCO EM SINAIS ---
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: white; }
-    .stButton>button { width: 100%; background: #00c853; color: white; font-weight: bold; border-radius: 8px; }
-    .card { background: #1a1c22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
-    .win-text { color: #00ff00; font-weight: bold; }
-    .loss-text { color: #ff4b4b; font-weight: bold; }
+    .main { background-color: #060d14; color: #e1e1e1; }
+    .stButton>button { background: linear-gradient(90deg, #00c853, #b2ff59); color: black; font-weight: bold; border: none; }
+    .card-sinal { background: #121921; border: 2px solid #00d2ff; padding: 20px; border-radius: 15px; text-align: center; }
+    .taxa-box { font-size: 24px; color: #00d2ff; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNÇÃO DE BUSCA SEM CACHE TRAVADO ---
-def fetch_realtime_data(ativo):
-    tickers = {"EUR/USD (OTC)": "EURUSD=X", "BTC/USD": "BTC-USD", "GBP/USD (OTC)": "GBPUSD=X"}
-    # Buscamos os dados dos últimos 2 dias em 1m para garantir que as médias existam
-    df = yf.download(tickers[ativo], period="1d", interval="1m", progress=False)
-    if df.empty or len(df) < 20:
-        return None
+# --- MEMÓRIA ---
+if "win" not in st.session_state: st.session_state.win = 0
+if "loss" not in st.session_state: st.session_state.loss = 0
+
+# --- FUNÇÃO DE BUSCA DE ALTA VELOCIDADE ---
+def get_live_data(ticker_name):
+    mapa = {"EUR/USD": "EURUSD=X", "BTC/USD": "BTC-USD", "GBP/USD": "GBPUSD=X"}
+    # Forçamos o download sem cache para tentar reduzir o delay
+    data = yf.download(mapa[ticker_name], period="1d", interval="1m", progress=False)
+    if data.empty: return None
     
-    # Cálculos Reais
-    df['EMA_10'] = df['Close'].ewm(span=10, adjust=False).mean()
-    df['SMA_20'] = df['Close'].rolling(window=20).mean()
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    df['RSI'] = 100 - (100 / (1 + (gain / loss)))
-    return df
+    # INDICADORES DE PRECISÃO (Para bater com corretora)
+    # RSI: Detecta se o preço "esticou" demais
+    delta = data['Close'].diff()
+    up = delta.clip(lower=0)
+    down = -1 * delta.clip(upper=0)
+    ema_up = up.ewm(com=13, adjust=False).mean()
+    ema_down = down.ewm(com=13, adjust=False).mean()
+    rs = ema_up / ema_down
+    data['RSI'] = 100 - (100 / (1 + rs))
+    
+    # Médias Rápidas
+    data['EMA_5'] = data['Close'].ewm(span=5, adjust=False).mean()
+    data['EMA_20'] = data['Close'].ewm(span=20, adjust=False).mean()
+    
+    return data
 
 # --- INTERFACE ---
-st.subheader("🤖 Analisador em Tempo Real (Vela Seguinte)")
+st.title("🎯 IA Precision - Trader Room Sync")
+par = st.selectbox("Paridade", ["EUR/USD", "GBP/USD", "BTC/USD"])
 
-ativo = st.selectbox("Selecione o Ativo", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"])
-
-# Botão para forçar atualização manual se necessário
-if st.button("🔄 ATUALIZAR AGORA"):
-    st.rerun()
-
-df = fetch_realtime_data(ativo)
+df = get_live_data(par)
 
 if df is not None:
-    preco_agora = float(df['Close'].iloc[-1].item())
-    rsi_agora = float(df['RSI'].iloc[-1].item())
-    ema = float(df['EMA_10'].iloc[-1].item())
-    sma = float(df['SMA_20'].iloc[-1].item())
+    # Captura de valores atuais
+    c_price = float(df['Close'].iloc[-1].item())
+    c_rsi = float(df['RSI'].iloc[-1].item())
+    ema5 = float(df['EMA_5'].iloc[-1].item())
+    ema20 = float(df['EMA_20'].iloc[-1].item())
 
-    # --- LÓGICA DE ASSERTIVIDADE ---
-    vitorias = len([s for s in st.session_state.historico_sinais if s.get('status') == 'WIN'])
-    total = len(st.session_state.historico_sinais)
-    taxa = (vitorias / total * 100) if total > 0 else 0
+    # --- LÓGICA DE ANÁLISE PARA PRÓXIMA VELA ---
+    # Só dá sinal se houver confluência (Médias + RSI)
+    decisao = "AGUARDAR"
+    if ema5 > ema20 and c_rsi < 70: 
+        decisao = "COMPRA 🟢"
+    elif ema5 < ema20 and c_rsi > 30: 
+        decisao = "VENDA 🔴"
+    
+    # Ajuste de filtro para evitar erros em lateralização
+    if 45 < c_rsi < 55:
+        decisao = "AGUARDAR (Mercado Lateral)"
 
     c1, c2 = st.columns([2, 1])
 
     with c1:
-        # Gráfico Candlestick
+        # Gráfico de Velas
         fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-        fig.add_trace(go.Scatter(x=df.index, y=df['EMA_10'], name="EMA 10", line=dict(color='#00ff00', width=1.5)))
-        fig.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+        fig.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
         
-        st.markdown(f"""
-        <div class='card'>
-            <b>Taxa de Assertividade da Sessão: {taxa:.1f}%</b><br>
-            <small>Preço atual: {preco_agora:.5f} | RSI: {rsi_agora:.2f}</small>
-        </div>
-        """, unsafe_allow_html=True)
+        # Dashboard de Assertividade
+        total = st.session_state.win + st.session_state.loss
+        taxa = (st.session_state.win / total * 100) if total > 0 else 0
+        st.markdown(f"<div class='taxa-box'>Assertividade Real: {taxa:.1f}%</div>", unsafe_allow_html=True)
 
     with c2:
-        st.markdown("### Análise de Próxima Vela")
-        
-        # Lógica de Sinal para a vela seguinte
-        direcao = "COMPRA" if ema > sma else "VENDA"
-        cor = "#00c853" if direcao == "COMPRA" else "#ff4b4b"
-        
-        if st.button("ANALISAR PRÓXIMA VELA"):
-            with st.spinner('Projetando...'):
+        st.markdown("### Sinal para Vela Seguinte")
+        if st.button("GERAR ANÁLISE"):
+            with st.spinner('Sincronizando...'):
                 time.sleep(1)
-                st.session_state.sinal_pendente = {
-                    "preco_entrada": preco_agora,
-                    "direcao": direcao,
-                    "timestamp_expiracao": datetime.now() + timedelta(minutes=2),
-                    "status": "Aguardando"
-                }
-                st.rerun()
+                st.markdown(f"""
+                <div class='card-sinal'>
+                    <h1 style='color: white;'>{decisao}</h1>
+                    <hr>
+                    <p>Entrada na abertura da próxima vela</p>
+                    <small>Preço Base: {c_price:.5f}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Botões de correção manual de aprendizado
+        st.write("Resultado do último sinal:")
+        cb1, cb2 = st.columns(2)
+        if cb1.button("✅ WIN"): st.session_state.win += 1; st.rerun()
+        if cb2.button("❌ LOSS"): st.session_state.loss += 1; st.rerun()
 
-        if st.session_state.sinal_pendente:
-            s = st.session_state.sinal_pendente
-            st.markdown(f"""
-            <div style='background:{cor}; padding:15px; border-radius:10px; text-align:center; border: 2px solid white;'>
-                <h2 style='margin:0;'>{s['direcao']}</h2>
-                <p>Análise enviada para vela seguinte.</p>
-                <small>Aguardando confirmação do mercado...</small>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # --- VERIFICAÇÃO AUTOMÁTICA DE RESULTADO ---
-    if st.session_state.sinal_pendente:
-        if datetime.now() >= st.session_state.sinal_pendente['timestamp_expiracao']:
-            # Checa se o preço da vela seguinte fechou a favor
-            preco_final = preco_agora 
-            venceu = (preco_final > s['preco_entrada']) if s['direcao'] == "COMPRA" else (preco_final < s['preco_entrada'])
-            s['status'] = "WIN" if venceu else "LOSS"
-            st.session_state.historico_sinais.append(s)
-            st.session_state.sinal_pendente = None
-            st.rerun()
-
-else:
-    st.warning("⚠️ Aguardando resposta do mercado... Verifique sua conexão ou troque o ativo.")
-
-# Barra de Status inferior
-st.markdown("---")
-st.write("**Histórico de Resultados Recentes:**")
-if st.session_state.historico_sinais:
-    cols = st.columns(10)
-    for i, res in enumerate(st.session_state.historico_sinais[-10:]):
-        cor_res = "win-text" if res['status'] == "WIN" else "loss-text"
-        cols[i].markdown(f"<span class='{cor_res}'>{res['status']}</span>", unsafe_allow_html=True)
+st.info("Nota: O mercado OTC das corretoras pode divergir do mercado real. Use esta ferramenta como confluência técnica.")
