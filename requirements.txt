@@ -2,3 +2,5 @@ streamlit
 pandas
 numpy
 plotly
+pandas-ta
+yfinance
