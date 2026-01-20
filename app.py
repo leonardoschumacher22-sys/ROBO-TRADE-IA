@@ -5,17 +5,17 @@ import plotly.graph_objects as go
 import yfinance as yf
 import time
 
-# ================== CONFIG ==================
+# ================= CONFIG =================
 st.set_page_config(
     page_title="IT • MODO PRO",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ================== CSS ==================
+# ================= CSS =================
 st.markdown("""
 <style>
-html, body, [class*="css"]  {
+html, body, [class*="css"] {
     background-color: #0b0f17;
     color: #e5e7eb;
 }
@@ -68,24 +68,36 @@ html, body, [class*="css"]  {
 </style>
 """, unsafe_allow_html=True)
 
-# ================== HEADER ==================
-h1, h2, h3 = st.columns([1,3,2])
+# ================= HEADER =================
+h1, h2, h3 = st.columns([1, 3, 2])
 with h1:
     st.markdown("## 🟢 **IT**")
 with h2:
-    ativo = st.selectbox("", ["EURUSD=X", "GBPUSD=X", "BTC-USD"], label_visibility="collapsed")
+    ativo = st.selectbox(
+        "",
+        ["EURUSD=X", "GBPUSD=X", "BTC-USD"],
+        label_visibility="collapsed"
+    )
 with h3:
-    st.markdown("<p style='text-align:right;color:#9ca3af'>Análises diárias: ilimitadas</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align:right;color:#9ca3af'>Análises diárias: ilimitadas</p>",
+        unsafe_allow_html=True
+    )
 
-# ================== DATA ==================
+# ================= DATA =================
 @st.cache_data(ttl=2)
 def load_data(ticker):
-    df = yf.download(ticker, period="1d", interval="1m", progress=False)
-    if df.empty:
+    df = yf.download(
+        ticker,
+        period="1d",
+        interval="1m",
+        progress=False
+    )
+    if df is None or df.empty:
         return None
+
     df["EMA10"] = df["Close"].ewm(span=10).mean()
     df["EMA20"] = df["Close"].ewm(span=20).mean()
-    df["SMA50"] = df["Close"].rolling(50).mean()
     return df
 
 df = load_data(ativo)
@@ -94,18 +106,22 @@ if df is None:
     st.error("Erro ao carregar dados.")
     st.stop()
 
-# ================== SIGNAL ==================
-ema10 = df["EMA10"].iloc[-1]
-ema20 = df["EMA20"].iloc[-1]
+# ================= SAFE VALUES =================
+last_price = float(df["Close"].iloc[-1])
+high_price = float(df["High"].max())
 
+ema10 = float(df["EMA10"].iloc[-1])
+ema20 = float(df["EMA20"].iloc[-1])
+
+# ================= SIGNAL =================
 prob_up = 68 if ema10 > ema20 else 42
 prob_down = 100 - prob_up
 signal = "COMPRA" if prob_up > prob_down else "VENDA"
 
-# ================== MAIN LAYOUT ==================
+# ================= LAYOUT =================
 left, right = st.columns([2.2, 1])
 
-# ================== CHART ==================
+# ================= CHART =================
 with left:
     st.markdown("### 📈 Gráfico em tempo real")
 
@@ -121,13 +137,15 @@ with left:
     )
 
     fig.add_trace(go.Scatter(
-        x=df.index, y=df["EMA10"],
+        x=df.index,
+        y=df["EMA10"],
         line=dict(color="#22c55e", width=2),
         name="EMA 10"
     ))
 
     fig.add_trace(go.Scatter(
-        x=df.index, y=df["EMA20"],
+        x=df.index,
+        y=df["EMA20"],
         line=dict(color="#38bdf8", width=2),
         name="EMA 20"
     ))
@@ -143,13 +161,14 @@ with left:
     st.plotly_chart(fig, use_container_width=True)
 
     c1, c2 = st.columns(2)
+
     with c1:
         st.markdown(f"""
         <div class="card">
         <b>Informações do ativo</b><br><br>
         Ativo: {ativo}<br>
-        Cotação: {df['Close'].iloc[-1]:.5f}<br>
-        Máxima: {df['High'].max():.5f}
+        Cotação: {last_price:.5f}<br>
+        Máxima: {high_price:.5f}
         </div>
         """, unsafe_allow_html=True)
 
@@ -162,15 +181,21 @@ with left:
         </div>
         """, unsafe_allow_html=True)
 
-# ================== AI PANEL ==================
+# ================= AI PANEL =================
 with right:
     st.markdown("### 🤖 Análise com I.A.")
 
     a, b = st.columns(2)
     with a:
-        st.markdown(f"<div class='badge-green'>{prob_up}%<br>Cima</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='badge-green'>{prob_up}%<br>Cima</div>",
+            unsafe_allow_html=True
+        )
     with b:
-        st.markdown(f"<div class='badge-red'>{prob_down}%<br>Baixo</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='badge-red'>{prob_down}%<br>Baixo</div>",
+            unsafe_allow_html=True
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -193,11 +218,11 @@ with right:
     st.markdown("""
     <div class="card">
     <b>Explicação</b><br>
-    Cruzamento de EMA indicando continuação de fluxo.
+    Cruzamento da EMA 10 acima da EMA 20 indicando continuação de fluxo.
     </div>
     """, unsafe_allow_html=True)
 
-# ================== NEWS ==================
+# ================= NEWS =================
 st.markdown("### 📰 Notícias importantes")
 
 n1, n2, n3 = st.columns(3)
