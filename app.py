@@ -15,7 +15,7 @@ st.markdown("""
         text-align: center;
     }
     </style>
-    """, unsafe_allow_dict=True)
+    """, unsafe_allow_html=True)
 
 # --- BARRA LATERAL (ÁREA DO ASSINANTE) ---
 st.sidebar.title("💎 ÁREA VIP")
@@ -52,4 +52,5 @@ with col2:
             
             st.warning("⚠️ Entre na corretora agora e aguarde o fechamento da vela.")
             
+
         time.sleep(60) # Espera 1 minuto para o próximo sinal
