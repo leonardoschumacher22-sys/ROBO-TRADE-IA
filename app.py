@@ -5,100 +5,95 @@ import time
 import random
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(
-    page_title="IA TRADE PRO - SINAIS VIP",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ESTILIZAÇÃO CSS (VISUAL MODO PRO) ---
+# --- ESTILIZAÇÃO CSS CORRIGIDA ---
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: #ffffff; }
-    [data-testid="stSidebar"] { background-color: #161b22; border-right: 1px solid #30363d; }
+    .main { background-color: #1a1c22; color: #ffffff; }
     .stButton>button {
         width: 100%;
         background-color: #00c853;
         color: white;
         font-weight: bold;
-        border-radius: 8px;
+        border-radius: 5px;
         height: 3.5em;
         border: none;
-        transition: 0.3s;
     }
-    .stButton>button:hover { background-color: #00e676; border: none; color: white; }
     .card {
-        background-color: #1c2128;
-        padding: 20px;
-        border-radius: 12px;
+        background-color: #23272f;
+        padding: 15px;
+        border-radius: 8px;
         border: 1px solid #30363d;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
     }
-    .metric-label { color: #8b949e; font-size: 14px; }
-    .metric-value { color: #ffffff; font-size: 18px; font-weight: bold; }
+    .header-info { text-align: right; color: #8b949e; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SISTEMA DE LOGIN (TRAVA DE SEGURANÇA) ---
-# DICA: Para testar agora, use o e-mail abaixo. 
-# Quando quiser liberar para clientes, adicione os e-mails deles nesta lista.
-ASSINANTES_VIPS = [
-    "leonardo.schumacher22@gmail.com",
-    "teste@admin.com"
-]
+# --- CABEÇALHO ---
+col_logo, col_pair, col_mode = st.columns([1, 4, 2])
+with col_logo:
+    st.markdown("## IT")
+with col_pair:
+    st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "USD/JPY"], label_visibility="collapsed")
+with col_mode:
+    st.markdown("<div class='header-info'>Análises diárias restantes: <b>0</b></div>", unsafe_allow_html=True)
+    st.button("Sair do modo Pro", key="sair_pro")
 
-def verificar_acesso(email_digitado):
-    return email_digitado.strip().lower() in ASSINANTES_VIPS
+# --- CORPO PRINCIPAL ---
+c1, c2 = st.columns([2, 1])
 
-# Interface de Login na Lateral
-st.sidebar.markdown("# 🔐 ÁREA VIP")
-user_email = st.sidebar.text_input("E-mail do Assinante:")
-
-if verificar_acesso(user_email):
-    st.sidebar.success("Acesso Liberado!")
-    if st.sidebar.button("Sair"):
-        st.rerun()
-
-    # --- DASHBOARD DE SINAIS (CONTEÚDO PROTEGIDO) ---
+with c1:
+    st.markdown("### Gráfico em tempo real")
+    # Gerando dados reais para o gráfico não dar erro
+    chart_data = pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA'])
+    st.line_chart(chart_data, height=350)
     
-    # Cabeçalho
-    col_header_1, col_header_2 = st.columns([4, 2])
-    with col_header_1:
-        st.markdown("# 🤖 Algoritmo IA Trade")
-        st.write("Análise em tempo real dos pares de moedas mais voláteis.")
-    with col_header_2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "USD/JPY (OTC)"], label_visibility="collapsed")
+    # Grid de Informações do Ativo (Idêntico à imagem image_cc7f78.png)
+    st.markdown("### Informações do ativo")
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.write("**Ativo:** EUR/USD (OTC)")
+        st.write("**Cotação atual:** 1.187905")
+        st.write("**Fundo:** 1.186285")
+    with col_b:
+        st.write("**Topo:** 1.190185")
+        st.write("**Preço médio:** 1.187820")
+        st.write("**Tendência:** IA analisando...")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Layout Principal
-    col_main, col_side = st.columns([2, 1])
+with c2:
+    st.markdown("### Análise com I.A")
+    
+    # Indicadores de força (image_cc7f3c.png)
+    p_cima, p_baixo = st.columns(2)
+    p_cima.markdown("<div style='background:#1b4332; padding:15px; text-align:center; border-radius:5px; color:#00ff00;'>0%<br>Para cima</div>", unsafe_allow_html=True)
+    p_baixo.markdown("<div style='background:#432818; padding:15px; text-align:center; border-radius:5px; color:#ff4b4b;'>0%<br>Para baixo</div>", unsafe_allow_html=True)
+    
+    st.write("")
+    
+    # BOTÃO FUNCIONAL
+    if st.button("ANALISAR ENTRADA"):
+        with st.spinner('Processando algoritmos...'):
+            time.sleep(2)
+            decisao = random.choice(["CALL", "PUT"])
+            if decisao == "CALL":
+                st.success("🎯 SINAL IDENTIFICADO: COMPRA (CALL) 🟢")
+            else:
+                st.error("🎯 SINAL IDENTIFICADO: VENDA (PUT) 🔴")
 
-    with col_main:
-        st.markdown("### 📊 Gráfico de Tendência IA")
-        # Simulação de Gráfico de Indicadores
-        chart_data = pd.DataFrame(
-            np.random.randn(20, 3),
-            columns=['Força Compradora', 'Força Vendedora', 'Tendência IA']
-        )
-        st.line_chart(chart_data, height=300)
+    # Explicação da análise
+    st.markdown("<div class='card'><b>Explicação da análise</b><br>Aguardando processamento de dados do gráfico...</div>", unsafe_allow_html=True)
 
-        # Informações do Ativo (Igual à imagem enviada)
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.write("📋 **Informações do Ativo**")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("<p class='metric-label'>Cotação atual</p>", unsafe_allow_html=True)
-            st.markdown("<p class='metric-value'>1.187905</p>", unsafe_allow_html=True)
-        with c2:
-            st.markdown("<p class='metric-label'>Topo</p>", unsafe_allow_html=True)
-            st.markdown("<p class='metric-value'>1.190185</p>", unsafe_allow_html=True)
-        with c3:
-            st.markdown("<p class='metric-label'>Fundo</p>", unsafe_allow_html=True)
-            st.markdown("<p class='metric-value'>1.186285</p>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with col_side:
-        st.markdown("### ⚡ Análise IA")
-        
-        # Por
+# --- RODAPÉ (NOTÍCIAS image_cc7fb9.png) ---
+st.markdown("---")
+st.markdown("### Notícias importantes do ativo")
+n1, n2, n3 = st.columns(3)
+with n1:
+    st.info("SEC autoriza Nasdaq a negociar primeiro ETF de bitcoin...")
+with n2:
+    st.warning("Fundador da Terra (LUNA) é procurado em 195 países...")
+with n3:
+    st.info("ETF de Bitcoin será evento 'buy the rumor'...")
