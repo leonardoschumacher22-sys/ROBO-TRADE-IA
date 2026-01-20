@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
-import random
+import yfinance as yf
+import pandas_ta as ta
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import pytz
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="IT - IA PRO", layout="wide", initial_sidebar_state="collapsed")
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
@@ -25,13 +26,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- INICIALIZAÇÃO DE ESTADO (Para travar a análise) ---
-if "analise_realizada" not in st.session_state:
-    st.session_state.p_cima = 0
-    st.session_state.p_baixo = 0
-    st.session_state.sinal_html = ""
-    st.session_state.texto_analise = "A explicação da análise aparecerá aqui após solicitar."
-
 # --- LOGIN ---
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -43,49 +37,100 @@ if not st.session_state.logado:
         if email.strip().lower() == "leonardo.schumacher22@gmail.com":
             st.session_state.logado = True
             st.rerun()
+        else:
+            st.error("E-mail não autorizado.")
     st.stop()
 
-# --- CABEÇALHO ---
-col_logo, col_pair, col_mode = st.columns([1, 4, 2])
-with col_logo: st.markdown("## IT")
-with col_pair:
-    ativo_selecionado = st.selectbox("", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"], label_visibility="collapsed")
-with col_mode:
-    st.markdown("<div style='text-align:right; color:#8b949e;'>Análises: <b>Ilimitado</b></div>", unsafe_allow_html=True)
+# --- MAPEAMENTO DE ATIVOS ---
+ativos_map = {"EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "BTC/USD": "BTC-USD"}
 
-# --- FRAGMENTO PARA DADOS EM TEMPO REAL (Gráficos e Índices) ---
-@st.fragment(run_every=2)
-def live_market_data():
-    c1, c2 = st.columns([2, 1])
+# --- HEADER ---
+c_logo, c_ativo, c_status = st.columns([1, 3, 2])
+with c_logo: st.markdown("## IT")
+with c_ativo: 
+    escolha = st.selectbox("", list(ativos_map.keys()), label_visibility="collapsed")
+    ticker = ativos_map[escolha]
+with c_status:
+    st.markdown("<div style='text-align:right; color:#00ff00;'>● IA Conectada</div>", unsafe_allow_html=True)
 
-    with c1:
-        st.markdown("### Gráfico em tempo real")
-        st.line_chart(pd.DataFrame(np.random.randn(50, 2), columns=['SMA', 'EMA']), height=300)
+# --- ENGINE DE PROCESSAMENTO ---
+@st.cache_data(ttl=60)
+def carregar_dados(symbol):
+    data = yf.download(symbol, period="1d", interval="1m")
+    # Limpeza de colunas MultiIndex se necessário
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+    
+    # Cálculo de indicadores
+    data['RSI'] = ta.rsi(data['Close'], length=14)
+    bb = ta.bbands(data['Close'], length=20, std=2)
+    # Concatena garantindo que as colunas das bandas existam
+    data = pd.concat([data, bb], axis=1)
+    data['SMA_20'] = ta.sma(data['Close'], length=20)
+    return data.dropna()
+
+try:
+    df = carregar_dados(ticker)
+    
+    # Identificar nomes das colunas das Bandas de Bollinger (evita KeyError)
+    col_upper = [c for c in df.columns if 'BBU' in c][0]
+    col_lower = [c for c in df.columns if 'BBL' in c][0]
+
+    # --- DASHBOARD ---
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("### Monitoramento de Fluxo (Real-Time)")
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Preço"
+        )])
+        # Adiciona Bandas
+        fig.add_trace(go.Scatter(x=df.index, y=df[col_upper], line=dict(color='gray', width=1), name="Banda Sup", opacity=0.3))
+        fig.add_trace(go.Scatter(x=df.index, y=df[col_lower], line=dict(color='gray', width=1), name="Banda Inf", opacity=0.3))
         
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            preco = 1.187000 + random.uniform(-0.0002, 0.0002)
-            st.markdown(f"<div class='card'><b>Ativo</b><br><small>{ativo_selecionado}<br>Preço: {preco:.6f}</small></div>", unsafe_allow_html=True)
-        with m2:
-            val = random.randint(45, 55)
-            fig = go.Figure(go.Indicator(mode="gauge+number", value=val, gauge={'axis':{'range':[0,100]},'bar':{'color':"yellow"}}))
-            fig.update_layout(height=140, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
-            st.plotly_chart(fig, use_container_width=True)
-        with m3:
-            st.markdown("<div class='card'><b>MVP</b>", unsafe_allow_html=True)
-            st.line_chart(np.random.randn(15, 1), height=80)
-            st.markdown("</div>", unsafe_allow_html=True)
+        fig.update_layout(height=400, template="plotly_dark", margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig, use_container_width=True)
 
-    with c2:
-        st.markdown("### Análise com I.A")
-        # EXIBE OS VALORES TRAVADOS DO SESSION_STATE
-        pc, pb = st.columns(2)
-        pc.markdown(f"<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>{st.session_state.p_cima}%<br>Cima</div>", unsafe_allow_html=True)
-        pb.markdown(f"<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>{st.session_state.p_baixo}%<br>Baixo</div>", unsafe_allow_html=True)
-        
-        if st.button("ANALISAR ENTRADA"):
-            with st.spinner('Analisando próxima vela...'):
-                time.sleep(2)
-                # ATUALIZA OS DADOS APENAS AQUI
-                st.session_state.p_cima = random.randint(30, 70)
-                st.session_state.p_baixo = 100 - st.session_state.p_cima
+    with col2:
+        st.markdown("### Julgamento da IA")
+        if st.button("ANALISAR AGORA"):
+            with st.spinner('Aguardando confluência...'):
+                time.sleep(1.5)
+                
+                ultimo_preco = df['Close'].iloc[-1]
+                ultimo_rsi = df['RSI'].iloc[-1]
+                sup_band = df[col_upper].iloc[-1]
+                inf_band = df[col_lower].iloc[-1]
+                
+                sinal = "AGUARDAR"
+                if ultimo_rsi < 35 and ultimo_preco <= inf_band:
+                    sinal = "COMPRA"
+                elif ultimo_rsi > 65 and ultimo_preco >= sup_band:
+                    sinal = "VENDA"
+                
+                fuso = pytz.timezone('America/Sao_Paulo')
+                agora = datetime.now(fuso)
+                
+                if sinal != "AGUARDAR":
+                    cor = "#00c853" if sinal == "COMPRA" else "#d50000"
+                    st.markdown(f"""
+                        <div style='background:{cor}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
+                            <h2 style='margin:0; color:white;'>{sinal} 🟢</h2>
+                            <p style='color:white;'><b>Ativo:</b> {escolha} | <b>Horário:</b> {agora.strftime("%H:%M")}</p>
+                            <hr style='border:0.5px solid rgba(255,255,255,0.3);'>
+                            <p style='font-size:13px; color:white; text-align:left;'>
+                                <b>Se der loss, siga as proteções:</b><br>
+                                • +1 entrada às {(agora + timedelta(minutes=1)).strftime("%H:%M")}<br>
+                                • +1 entrada às {(agora + timedelta(minutes=2)).strftime("%H:%M")}
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("Mercado sem confluência clara. IA sugere aguardar a próxima vela.")
+
+except Exception as e:
+    st.error(f"Erro na leitura de dados: {e}. Verifique se o ativo está aberto no mercado.")
+
+# --- FOOTER ---
+st.markdown("---")
+st.markdown("<small>Estratégia baseada em Exaustão de Preço (RSI + Bollinger Bands)</small>", unsafe_allow_html=True)
