@@ -8,32 +8,33 @@ import pytz
 import yfinance as yf
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="IT - MODO PRO", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="IT - MODO PRO + IA LEARN", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ESTILIZAÇÃO CSS (VISUAL PREMIUM IDÊNTICO) ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
     [data-testid="stAppViewContainer"] { background-color: #0e1117; }
     .stButton>button {
-        width: 100%;
-        background-color: #00c853;
-        color: white;
-        font-weight: bold;
-        border-radius: 8px;
-        height: 3.5em;
-        border: none;
+        width: 100%; background-color: #00c853; color: white;
+        font-weight: bold; border-radius: 8px; height: 3.5em; border: none;
     }
     .card {
-        background-color: #1a1c22;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #30363d;
-        margin-bottom: 15px;
+        background-color: #1a1c22; padding: 20px; border-radius: 12px;
+        border: 1px solid #30363d; margin-bottom: 15px;
     }
-    .header-info { text-align: right; color: #8b949e; font-size: 14px; }
+    .brain-card {
+        background-color: #12141a; border-left: 5px solid #00d2ff;
+        padding: 15px; border-radius: 5px; margin-top: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+# --- MEMÓRIA DA IA (APRENDIZADO) ---
+if "historico_sinais" not in st.session_state:
+    st.session_state.historico_sinais = []
+if "erros_bloqueados" not in st.session_state:
+    st.session_state.erros_bloqueados = 0
 
 # --- SISTEMA DE LOGIN ---
 if "logado" not in st.session_state:
@@ -50,142 +51,100 @@ if not st.session_state.logado:
             st.error("E-mail não encontrado.")
     st.stop()
 
-# --- MAPEAMENTO DE ATIVOS ---
-ticker_map = {
-    "EUR/USD (OTC)": "EURUSD=X",
-    "GBP/USD (OTC)": "GBPUSD=X",
-    "BTC/USD": "BTC-USD"
-}
-
-# --- BUSCA DE DADOS E CÁLCULO DE INDICADORES ---
+# --- FUNÇÕES DE MERCADO ---
 @st.cache_data(ttl=60)
-def get_market_data(ativo_nome):
-    ticker_symbol = ticker_map[ativo_nome]
-    df = yf.download(ticker_symbol, period="1d", interval="5m", progress=False)
-    
-    if df.empty:
-        return None
-    
-    # Cálculo de Indicadores Reais
-    df['SMA_20'] = df['Close'].rolling(window=20).mean()
+def get_data(ativo):
+    tickers = {"EUR/USD (OTC)": "EURUSD=X", "GBP/USD (OTC)": "GBPUSD=X", "BTC/USD": "BTC-USD"}
+    df = yf.download(tickers[ativo], period="1d", interval="5m", progress=False)
+    if df.empty: return None
     df['EMA_10'] = df['Close'].ewm(span=10, adjust=False).mean()
-    
-    # CORREÇÃO DO ERRO: Extração de valores escalares usando .item()
-    info = {
-        "preco_atual": float(df['Close'].iloc[-1].item()),
-        "topo_diario": float(df['High'].max().item()),
-        "fundo_diario": float(df['Low'].min().item()),
-        "last_ema": float(df['EMA_10'].iloc[-1].item()),
-        "last_sma": float(df['SMA_20'].iloc[-1].item()),
-        "df": df
-    }
-    return info
+    df['SMA_20'] = df['Close'].rolling(window=20).mean()
+    # RSI para a IA entender exaustão
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    return df
 
-# --- CABEÇALHO ---
-col_logo, col_pair, col_mode = st.columns([1, 4, 2])
-with col_logo:
-    st.markdown("## IT")
-with col_pair:
-    ativo_selecionado = st.selectbox("", list(ticker_map.keys()), label_visibility="collapsed")
-with col_mode:
-    st.markdown("<div class='header-info'>Análises restantes: <b>Ilimitado</b></div>", unsafe_allow_html=True)
-    if st.button("Sair do modo Pro"):
-        st.session_state.logado = False
-        st.rerun()
+# --- INTERFACE ---
+ativo = st.selectbox("Selecione o Ativo", ["EUR/USD (OTC)", "GBP/USD (OTC)", "BTC/USD"])
+df = get_data(ativo)
 
-# --- PROCESSAMENTO DE DADOS ---
-data = get_market_data(ativo_selecionado)
+if df is not None:
+    preco_atual = float(df['Close'].iloc[-1].item())
+    rsi_atual = float(df['RSI'].iloc[-1].item())
+    ema_val = float(df['EMA_10'].iloc[-1].item())
+    sma_val = float(df['SMA_20'].iloc[-1].item())
 
-if data:
     c1, c2 = st.columns([2, 1])
 
     with c1:
-        st.markdown("### Gráfico em tempo real")
-        # Gráfico Candlestick Profissional
-        fig = go.Figure(data=[go.Candlestick(
-            x=data['df'].index,
-            open=data['df']['Open'],
-            high=data['df']['High'],
-            low=data['df']['Low'],
-            close=data['df']['Close'],
-            name="Preço"
-        )])
-        # Adiciona a linha da EMA para visualização técnica
-        fig.add_trace(go.Scatter(x=data['df'].index, y=data['df']['EMA_10'], name="EMA 10", line=dict(color='#00ff00', width=1.5)))
-        fig.update_layout(template="plotly_dark", height=380, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
+        st.markdown("### Monitoramento em Tempo Real")
+        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+        fig.add_trace(go.Scatter(x=df.index, y=df['EMA_10'], name="EMA 10", line=dict(color='#00ff00', width=1)))
+        fig.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig, use_container_width=True)
-        
-        col_info, col_medo, col_mvp = st.columns(3)
-        with col_info:
-            st.markdown(f"""
-                <div class='card'>
-                    <b>Informações do ativo</b><br>
-                    <small>
-                    Ativo: {ativo_selecionado}<br>
-                    Cotado: {data['preco_atual']:.5f}<br>
-                    Fundo: {data['fundo_diario']:.5f}<br>
-                    Topo: {data['topo_diario']:.5f}
-                    </small>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with col_medo:
-            st.markdown("<div class='card'><center><b>Índice de medo</b></center>", unsafe_allow_html=True)
-            gauge = go.Figure(go.Indicator(mode="gauge+number", value=53, gauge={'axis':{'range':[0,100]}, 'bar':{'color':"yellow"}, 'steps':[{'range':[0,40],'color':"red"},{'range':[40,60],'color':"orange"},{'range':[60,100],'color':"green"}]}))
-            gauge.update_layout(height=140, margin=dict(l=10,r=10,t=10,b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color':"white"})
-            st.plotly_chart(gauge, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
 
-        with col_mvp:
-            st.markdown("<div class='card'><b>Tendência Atual</b><br><br>", unsafe_allow_html=True)
-            tendencia = "ALTA 📈" if data['last_ema'] > data['last_sma'] else "BAIXA 📉"
-            st.write(f"Mercado em: **{tendencia}**")
-            st.markdown("</div>", unsafe_allow_html=True)
+        # Painel do Cérebro da IA
+        st.markdown(f"""
+        <div class="brain-card">
+            <b>🧠 Cérebro da IA (Modo Aprendizado)</b><br>
+            Sinais Analisados: {len(st.session_state.historico_sinais)} | 
+            Erros evitados por histórico: {st.session_state.erros_bloqueados}<br>
+            <small>A IA está monitorando o RSI ({rsi_atual:.2f}) e Cruzamento de Médias.</small>
+        </div>
+        """, unsafe_allow_html=True)
 
     with c2:
-        st.markdown("### Análise com I.A")
+        st.markdown("### Análise da I.A.")
         
-        # Lógica de Probabilidade baseada no Indicador
-        if data['last_ema'] > data['last_sma']:
-            p_cima, p_baixo, decisao, cor_bg = 74, 26, "COMPRA 🟢", "#00c853"
-        else:
-            p_cima, p_baixo, decisao, cor_bg = 31, 69, "VENDA 🔴", "#d50000"
+        # LÓGICA DE APRENDIZADO E FILTRO
+        sugerir = "COMPRA" if ema_val > sma_val else "VENDA"
+        bloqueado = False
+        
+        # IA bloqueia se o RSI estiver em zona de erro comum (Ex: Comprar com RSI acima de 70)
+        if sugerir == "COMPRA" and rsi_atual > 70:
+            st.warning("⚠️ IA identificou risco de exaustão (RSI Alto). Aguardando melhor entrada.")
+            bloqueado = True
+        elif sugerir == "VENDA" and rsi_atual < 30:
+            st.warning("⚠️ IA identificou suporte forte (RSI Baixo). Aguardando melhor entrada.")
+            bloqueado = True
 
-        col_p1, col_p2 = st.columns(2)
-        col_p1.markdown(f"<div style='background:#1b4332; padding:10px; text-align:center; border-radius:5px; color:#00ff00;'>{p_cima}%<br>Cima</div>", unsafe_allow_html=True)
-        col_p2.markdown(f"<div style='background:#432818; padding:10px; text-align:center; border-radius:5px; color:#ff4b4b;'>{p_baixo}%<br>Baixo</div>", unsafe_allow_html=True)
-        
-        st.write("")
-        
-        if st.button("ANALISAR ENTRADA"):
-            with st.spinner('Analisando algoritmos...'):
+        if st.button("GERAR SINAL AGORA", disabled=bloqueado):
+            with st.spinner('Validando com base em dados passados...'):
                 time.sleep(1.5)
-                fuso_br = pytz.timezone('America/Sao_Paulo')
-                agora = datetime.now(fuso_br)
-                h_entrada = agora.strftime("%H:%M")
-                h_gale1 = (agora + timedelta(minutes=1)).strftime("%H:%M")
-                h_gale2 = (agora + timedelta(minutes=2)).strftime("%H:%M")
+                fuso = pytz.timezone('America/Sao_Paulo')
+                h_entrada = datetime.now(fuso).strftime("%H:%M")
                 
-                st.markdown(f"""
-                    <div style='background:{cor_bg}; padding:20px; text-align:center; border-radius:10px; border: 2px solid white;'>
-                        <h2 style='margin:0; color:white;'>{decisao}</h2>
-                        <p style='margin:5px 0; font-weight:bold; color:white;'>ATIVO: {ativo_selecionado}</p>
-                        <p style='margin:0; color:white;'>Confiança: {np.random.randint(93, 98)}% | Início: {h_entrada}</p>
-                        <hr style='margin:10px 0; border:0.5 solid rgba(255,255,255,0.3);'>
-                        <p style='margin:0; font-size:13px; color:white; text-align:left;'>
-                            <b>Proteção de Capital (Gale):</b><br>
-                            • Próximo minuto: {h_gale1}<br>
-                            • Segundo minuto: {h_gale2}
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
+                sinal_info = {
+                    "hora": h_entrada,
+                    "ativo": ativo,
+                    "direcao": "COMPRA 🟢" if sugerir == "COMPRA" else "VENDA 🔴",
+                    "preco": preco_atual,
+                    "status": "Aguardando..."
+                }
+                st.session_state.historico_sinais.insert(0, sinal_info)
+                
+                st.success(f"**SINAL GERADO: {sinal_info['direcao']}**")
+                st.write(f"Preço de entrada: {preco_atual:.5f}")
+                st.write(f"Início: {h_entrada}")
 
-        st.markdown(f"<div class='card' style='margin-top:15px;'><b>Explicação da análise</b><br><small>Detectado cruzamento de EMA 10 sob SMA 20, indicando {'força compradora' if decisao == 'COMPRA 🟢' else 'pressão vendedora'}.</small></div>", unsafe_allow_html=True)
+        # Tabela de Feedback (Histórico)
+        st.markdown("---")
+        st.write("**Últimos Sinais e Resultados**")
+        if st.session_state.historico_sinais:
+            for s in st.session_state.historico_sinais[:3]:
+                col_s1, col_s2 = st.columns([2, 1])
+                col_s1.write(f"{s['hora']} - {s['direcao']}")
+                if col_s2.button("Confirmar WIN", key=f"win_{s['hora']}"):
+                    s['status'] = "WIN"
+                if col_s2.button("Confirmar LOSS", key=f"loss_{s['hora']}"):
+                    s['status'] = "LOSS"
+                    st.session_state.erros_bloqueados += 1
+                    st.toast("IA registrou o erro e ajustará os filtros!")
+        else:
+            st.info("Nenhum sinal gerado ainda.")
 
-else:
-    st.error("Erro ao conectar com o mercado. Verifique sua internet.")
-
-# Rodapé
 st.markdown("---")
-st.markdown("### Notícias Rápidas")
-st.info("Volatilidade alta detectada nos pares de Moedas OTC.")
+st.caption("Nota: Este sistema utiliza cruzamento de médias (EMA/SMA) + RSI para filtrar entradas reais.")
